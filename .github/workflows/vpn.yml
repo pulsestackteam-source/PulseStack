@@ -33,6 +33,7 @@ jobs:
 
           SUB_URL = "https://subrostunnel.vercel.app/wf.txt"
           OUTPUT_FILE = "sub.json"
+          MAX_SERVERS = 200
 
           def fetch_and_decode(url):
               try:
@@ -58,13 +59,19 @@ jobs:
                   address = parsed.hostname
                   port = parsed.port or 443
 
+                  if not user_id or not address:
+                      return None
+
+                  network = query.get("type", ["tcp"])[0]
+                  security = query.get("security", ["none"])[0]
+
                   outbound = {
                       "tag": f"proxy-{tag_idx}",
                       "protocol": "vless",
                       "settings": {
                           "vnext": [{
                               "address": address,
-                              "port": port,
+                              "port": int(port),
                               "users": [{
                                   "id": user_id,
                                   "encryption": query.get("encryption", ["none"])[0],
@@ -73,16 +80,32 @@ jobs:
                           }]
                       },
                       "streamSettings": {
-                          "network": query.get("type", ["tcp"])[0],
-                          "security": query.get("security", ["none"])[0]
+                          "network": network,
+                          "security": security
                       }
                   }
 
-                  security = query.get("security", ["none"])[0]
+                  if network == "grpc":
+                      service_name = query.get("serviceName", query.get("path", [""]))[0]
+                      outbound["streamSettings"]["grpcSettings"] = {
+                          "serviceName": service_name,
+                          "multiMode": query.get("mode", ["false"])[0] == "multi"
+                      }
+                  elif network == "ws":
+                      outbound["streamSettings"]["wsSettings"] = {
+                          "path": query.get("path", ["/"])[0],
+                          "headers": {
+                              "Host": query.get("host", [""])[0]
+                          }
+                      }
+
                   if security == "reality":
+                      pbk = query.get("pbk", [""])[0]
+                      if not pbk:
+                          return None
                       outbound["streamSettings"]["realitySettings"] = {
                           "serverName": query.get("sni", [""])[0],
-                          "publicKey": query.get("pbk", [""])[0],
+                          "publicKey": pbk,
                           "fingerprint": query.get("fp", ["chrome"])[0],
                           "shortId": query.get("sid", [""])[0]
                       }
@@ -194,17 +217,21 @@ jobs:
           real_nodes = vless_nodes[1:] if len(vless_nodes) > 1 else vless_nodes
 
           parsed_outbounds = []
-          for tag_counter, line in enumerate(real_nodes, start=1):
+          tag_counter = 1
+          for line in real_nodes:
+              if len(parsed_outbounds) >= MAX_SERVERS:
+                  break
               outbound = parse_vless(line, tag_counter)
               if outbound:
                   parsed_outbounds.append(outbound)
+                  tag_counter += 1
 
           final_config = build_xray_config(parsed_outbounds)
 
           with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
               json.dump(final_config, f, ensure_ascii=False, indent=2)
 
-          print(f"Обработано {len(parsed_outbounds)} рабочих серверов. Сохранено в {OUTPUT_FILE}")
+          print(f"Обработано и сохранено {len(parsed_outbounds)} серверов (лимит {MAX_SERVERS}).")
           EOF
 
       - name: Commit and Push Changes
@@ -212,5 +239,5 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add sub.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update sub.json [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Limit to 200 servers and update sub.json [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
           
