@@ -27,6 +27,7 @@ jobs:
         run: |
           python3 - << 'EOF'
           import base64
+          import copy
           import json
           import re
           import socket
@@ -36,7 +37,9 @@ jobs:
 
           SUB_URL = "https://subrostunnel.vercel.app/wf.txt"
           OUTPUT_FILE = "sub.json"
-          MAX_SERVERS = 100
+          TOTAL_MAX_SERVERS = 100
+
+          POPULAR_ORDER = ["DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ"]
 
           def check_tcp_alive(host, port, timeout=1.5):
               try:
@@ -45,16 +48,12 @@ jobs:
               except Exception:
                   return False
 
-          # Извлечение флага и автоопределение страны через Unicode
           def detect_country(remark):
-              # Двойное раскодирование %XX (на случай двойного URL-encoding)
               text = urllib.parse.unquote(urllib.parse.unquote(remark))
               
-              # Поиск флагов-эмодзи в Unicode диапазоне Regional Indicator Symbols
               flag_match = re.search(r'[\U0001F1E6-\U0001F1FF]{2}', text)
               if flag_match:
                   flag = flag_match.group(0)
-                  # Магия конвертации эмодзи-флага в двухбуквенный ISO код (например 🇩🇪 -> DE)
                   c1 = chr(ord(flag[0]) - 0x1F1E6 + ord('A'))
                   c2 = chr(ord(flag[1]) - 0x1F1E6 + ord('A'))
                   code = f"{c1}{c2}"
@@ -68,7 +67,6 @@ jobs:
                   name = country_names.get(code, f"{flag} {code}")
                   return name, code
 
-              # Резервный поиск по тексту
               upper_text = text.upper()
               keywords_map = [
                   (["GERMANY", "ГЕРМАНИЯ", "DE"], "🇩🇪 Германия", "DE"),
@@ -239,8 +237,6 @@ jobs:
                   "country_code": country_code
               })
 
-          print(f"Собрано уникальных серверов: {len(parsed_nodes)}. Проверяем TCP пинг...")
-
           def check_node(node):
               if check_tcp_alive(node["address"], node["port"]):
                   return node
@@ -252,54 +248,99 @@ jobs:
               for r in results:
                   if r:
                       live_nodes.append(r)
-                      if len(live_nodes) >= MAX_SERVERS:
+                      if len(live_nodes) >= TOTAL_MAX_SERVERS:
                           break
-
-          print(f"Рабочих серверов: {len(live_nodes)}")
 
           if not live_nodes:
               raise ValueError("Не найдено ни одного рабочего сервера!")
 
-          final_outbounds = []
-          country_groups = {}
-
-          for idx, node in enumerate(live_nodes, start=1):
-              c_code = node["country_code"]
-              tag = f"proxy-{c_code}-{idx}"
-              node["outbound"]["tag"] = tag
-              final_outbounds.append(node["outbound"])
-
-              if c_code not in country_groups:
-                  country_groups[c_code] = {
+          by_country = {}
+          for node in live_nodes:
+              code = node["country_code"]
+              if code not in by_country:
+                  by_country[code] = {
                       "name": node["country_name"],
-                      "tags": []
+                      "nodes": []
                   }
-              country_groups[c_code]["tags"].append(tag)
+              by_country[code]["nodes"].append(node)
 
-          all_proxy_tags = [o["tag"] for o in final_outbounds]
+          sorted_codes = sorted(
+              by_country.keys(),
+              key=lambda c: POPULAR_ORDER.index(c) if c in POPULAR_ORDER else 999
+          )
 
-          balancers = [
-              {
-                  "tag": "Super_Balancer",
-                  "selector": ["proxy-"],
-                  "strategy": {"type": "leastPing"},
-                  "fallbackTag": all_proxy_tags[0]
-              }
+          virtual_outbounds = []
+          real_outbounds = []
+          balancers = []
+          routing_rules = [
+              {"port": "53", "type": "field", "network": "tcp,udp", "outboundTag": "dns-out"},
+              {"type": "field", "ip": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8"], "outboundTag": "direct"},
+              {"type": "field", "domain": ["regexp:.*\\.ru$", "domain:ya.ru", "domain:vk.com"], "outboundTag": "direct"}
           ]
 
-          for c_code, group in country_groups.items():
+          # 1. Главный видимый пункт: 🔁 Авто - самый быстрый (сохраняет структуру VLESS)
+          main_auto_tag = "🔁 Авто - самый быстрый"
+          main_auto_outbound = copy.deepcopy(live_nodes[0]["outbound"])
+          main_auto_outbound["tag"] = main_auto_tag
+          virtual_outbounds.append(main_auto_outbound)
+
+          # 2. Видимые пункты стран (сохраняют подпись VLESS / TCP / REALITY)
+          for code in sorted_codes:
+              group = by_country[code]
+              c_tag = group["name"]
+              
+              country_outbound = copy.deepcopy(group["nodes"][0]["outbound"])
+              country_outbound["tag"] = c_tag
+              virtual_outbounds.append(country_outbound)
+
+              c_real_tags = []
+              for idx, node in enumerate(group["nodes"], start=1):
+                  tag = f"proxy-{code}-{idx}"
+                  node["outbound"]["tag"] = tag
+                  real_outbounds.append(node["outbound"])
+                  c_real_tags.append(tag)
+
               balancers.append({
-                  "tag": f"Balancer_{c_code}",
-                  "selector": [f"proxy-{c_code}-"],
+                  "tag": f"Balancer_{code}",
+                  "selector": [f"proxy-{code}-"],
                   "strategy": {"type": "leastPing"},
-                  "fallbackTag": group["tags"][0]
+                  "fallbackTag": c_real_tags[0]
               })
 
-          dummy_outbound = {
-              "tag": "By hello team♥️",
-              "protocol": "blackhole",
-              "settings": {"response": {"type": "none"}}
-          }
+              routing_rules.append({
+                  "type": "field",
+                  "outboundTag": [c_tag],
+                  "balancerTag": f"Balancer_{code}"
+              })
+
+          # 3. Видимый пункт-заглушка
+          dummy_outbound = copy.deepcopy(live_nodes[0]["outbound"])
+          dummy_outbound["tag"] = "By hello team♥️"
+          virtual_outbounds.append(dummy_outbound)
+
+          # Балансировщик для полного Авто-выбора
+          all_real_tags = [o["tag"] for o in real_outbounds]
+          balancers.insert(0, {
+              "tag": "Balancer_ALL",
+              "selector": ["proxy-"],
+              "strategy": {"type": "leastPing"},
+              "fallbackTag": all_real_tags[0]
+          })
+
+          routing_rules.append({
+              "type": "field",
+              "outboundTag": [main_auto_tag],
+              "balancerTag": "Balancer_ALL"
+          })
+
+          routing_rules.append({
+              "type": "field",
+              "network": "tcp,udp",
+              "balancerTag": "Balancer_ALL"
+          })
+
+          # Порядок аутбаундов: [Авто] -> [Страны] -> [Заглушка] -> [Рабочие proxy-сервера]
+          final_outbounds = virtual_outbounds + real_outbounds
 
           final_config = {
               "dns": {
@@ -307,12 +348,7 @@ jobs:
                   "queryStrategy": "UseIPv4"
               },
               "routing": {
-                  "rules": [
-                      {"port": "53", "type": "field", "network": "tcp,udp", "outboundTag": "dns-out"},
-                      {"type": "field", "ip": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8"], "outboundTag": "direct"},
-                      {"type": "field", "domain": ["regexp:.*\\.ru$", "domain:ya.ru", "domain:vk.com"], "outboundTag": "direct"},
-                      {"type": "field", "network": "tcp,udp", "balancerTag": "Super_Balancer"}
-                  ],
+                  "rules": routing_rules,
                   "balancers": balancers,
                   "domainMatcher": "hybrid",
                   "domainStrategy": "AsIs"
@@ -322,7 +358,6 @@ jobs:
                   {"tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http"}
               ],
               "outbounds": final_outbounds + [
-                  dummy_outbound,
                   {"tag": "direct", "protocol": "freedom", "settings": {}},
                   {"tag": "block", "protocol": "blackhole", "settings": {"response": {"type": "none"}}},
                   {"tag": "dns-out", "protocol": "dns", "settings": {"blockTypes": [65, 28], "nonIPQuery": "reject"}}
@@ -337,7 +372,7 @@ jobs:
                   },
                   "subjectSelector": ["proxy-"]
               },
-              "remarks": "⚡ Авто Выбор",
+              "remarks": "⚡ Авто - самый быстрый",
               "meta": {
                   "serverDescription": "By hello team♥️"
               }
@@ -346,7 +381,7 @@ jobs:
           with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
               json.dump(final_config, f, ensure_ascii=False, indent=2)
 
-          print(f"Готово! Сохранено {len(final_outbounds)} живых серверов.")
+          print(f"Готово! Сгенерирован файл под стиль приложения.")
           EOF
 
       - name: Commit and Push Changes
@@ -354,5 +389,5 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add sub.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-parse flag encodings and update sub.json [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Format sub.json outbounds to render as VLESS profiles [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
           
