@@ -1,8 +1,8 @@
-name: Update Full Base64 Encoded Sub
+name: Update Auto-Select Xray Config
 
 on:
   schedule:
-    - cron: '0 */4 * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -18,12 +18,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.x'
 
       - name: Install dependencies
-        run: pip install requests pytz
+        run: pip install requests
 
-      - name: Process & Encode Everything to Base64
+      - name: Process Subscription & Generate Subscriptions
         run: |
           python3 - << 'EOF'
           import base64
@@ -33,20 +33,12 @@ jobs:
           import socket
           import urllib.parse
           import requests
-          from datetime import datetime, timedelta
-          import pytz
           from concurrent.futures import ThreadPoolExecutor
 
           SUB_URL = "https://subrostunnel.vercel.app/wf.txt"
-          TOTAL_MAX_SERVERS = 300
+          TOTAL_MAX_SERVERS = 100
 
           POPULAR_ORDER = ["DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ"]
-
-          def get_expiry_timestamp():
-              moscow_tz = pytz.timezone('Europe/Moscow')
-              now = datetime.now(moscow_tz)
-              future_date = now + timedelta(days=3650) # +10 лет
-              return int(future_date.timestamp())
 
           def check_tcp_alive(host, port, timeout=1.5):
               try:
@@ -57,12 +49,14 @@ jobs:
 
           def detect_country(remark):
               text = urllib.parse.unquote(urllib.parse.unquote(remark))
+              
               flag_match = re.search(r'[\U0001F1E6-\U0001F1FF]{2}', text)
               if flag_match:
                   flag = flag_match.group(0)
                   c1 = chr(ord(flag[0]) - 0x1F1E6 + ord('A'))
                   c2 = chr(ord(flag[1]) - 0x1F1E6 + ord('A'))
                   code = f"{c1}{c2}"
+                  
                   country_names = {
                       "DE": "🇩🇪 Германия", "NL": "🇳🇱 Нидерланды", "US": "🇺🇸 США",
                       "FI": "🇫🇮 Финляндия", "PL": "🇵🇱 Польша", "GB": "🇬🇧 Великобритания",
@@ -248,7 +242,7 @@ jobs:
               return None
 
           live_nodes = []
-          with ThreadPoolExecutor(max_workers=50) as executor:
+          with ThreadPoolExecutor(max_workers=20) as executor:
               results = executor.map(check_node, parsed_nodes)
               for r in results:
                   if r:
@@ -316,7 +310,7 @@ jobs:
 
           all_server_configs = []
 
-          # 1. Авто
+          # 1. Отдельный сервер: 🔁 Авто - самый быстрый
           auto_config = build_standalone_json("🔁 Авто - самый быстрый", live_nodes)
           all_server_configs.append(auto_config)
 
@@ -336,33 +330,38 @@ jobs:
               key=lambda c: POPULAR_ORDER.index(c) if c in POPULAR_ORDER else 999
           )
 
-          # 2. Страны
+          # 2. Отдельные серверы под каждую страну
           for code in sorted_codes:
               group = by_country[code]
               c_config = build_standalone_json(group["name"], group["nodes"])
               all_server_configs.append(c_config)
 
-          # Генерация даты и заголовков
-          expiry_ts = get_expiry_timestamp()
-          headers = f"#profile-title: VoidX VPN\n#profile-update-interval: 24\n#subscription-userinfo: upload=0; download=0; total=107374182400; expire={expiry_ts}\n"
+          # 3. Отдельный сервер-заглушка в конце
+          dummy_config = {
+              "dns": {"servers": ["1.1.1.1"]},
+              "inbounds": [{"tag": "socks", "port": 10808, "protocol": "socks"}],
+              "outbounds": [{"tag": "block", "protocol": "blackhole", "settings": {"response": {"type": "none"}}}],
+              "remarks": "By hello team♥️"
+          }
+          all_server_configs.append(dummy_config)
 
-          # Формируем полный контент: Заголовки + JSON массив
-          json_content = json.dumps(all_server_configs, ensure_ascii=False, indent=2)
-          full_content = headers + json_content
+          # Сохранение подписки в формате JSON-массива (sub.json)
+          with open("sub.json", "w", encoding="utf-8") as f:
+              json.dump(all_server_configs, f, ensure_ascii=False, indent=2)
 
-          # Кодируем ВСЁ вместе в Base64
-          encoded_sub = base64.b64encode(full_content.encode('utf-8')).decode('utf-8')
-
-          # Сохраняем в sub.txt
+          # Сохранение подписки в формате Base64 строки (sub.txt)
+          encoded_lines = [base64.b64encode(json.dumps(cfg, ensure_ascii=False).encode('utf-8')).decode('utf-8') for cfg in all_server_configs]
           with open("sub.txt", "w", encoding="utf-8") as f:
-              f.write(encoded_sub)
+              f.write("\n".join(encoded_lines))
 
-          print(f"Готово! Весь файл (заголовки + JSON) закодирован в Base64 в sub.txt. Лимит: {TOTAL_MAX_SERVERS}.")
+          print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов в sub.json и sub.txt.")
           EOF
 
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add sub.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update full Base64 subscription [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
+          git add sub.json sub.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Generate separate JSON servers for sub [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
+
+          
