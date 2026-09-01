@@ -36,9 +36,9 @@ jobs:
           from concurrent.futures import ThreadPoolExecutor
 
           SUB_URL = "https://subrostunnel.vercel.app/wf.txt"
-          TOTAL_MAX_SERVERS = 100
+          TOTAL_MAX_SERVERS = 300
 
-          POPULAR_ORDER = ["DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ"]
+          POPULAR_ORDER = ["DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ", "TW", "HK", "SG", "JP", "KR", "CA"]
 
           def check_tcp_alive(host, port, timeout=1.5):
               try:
@@ -51,18 +51,20 @@ jobs:
               text = urllib.parse.unquote(urllib.parse.unquote(remark))
               
               flag_match = re.search(r'[\U0001F1E6-\U0001F1FF]{2}', text)
+              country_names = {
+                  "DE": "🇩🇪 Германия", "NL": "🇳🇱 Нидерланды", "US": "🇺🇸 США",
+                  "FI": "🇫🇮 Финляндия", "PL": "🇵🇱 Польша", "GB": "🇬🇧 Великобритания",
+                  "TR": "🇹🇷 Турция", "SE": "🇸🇪 Швеция", "FR": "🇫🇷 Франция",
+                  "KZ": "🇰🇿 Казахстан", "JP": "🇯🇵 Япония", "SG": "🇸🇬 Сингапур",
+                  "TW": "🇹🇼 Тайвань", "HK": "🇭🇰 Гонконг", "KR": "🇰🇷 Корея",
+                  "CA": "🇨🇦 Канада", "IN": "🇮🇳 Индия", "AU": "🇦🇺 Австралия"
+              }
+
               if flag_match:
                   flag = flag_match.group(0)
                   c1 = chr(ord(flag[0]) - 0x1F1E6 + ord('A'))
                   c2 = chr(ord(flag[1]) - 0x1F1E6 + ord('A'))
                   code = f"{c1}{c2}"
-                  
-                  country_names = {
-                      "DE": "🇩🇪 Германия", "NL": "🇳🇱 Нидерланды", "US": "🇺🇸 США",
-                      "FI": "🇫🇮 Финляндия", "PL": "🇵🇱 Польша", "GB": "🇬🇧 Великобритания",
-                      "TR": "🇹🇷 Турция", "SE": "🇸🇪 Швеция", "FR": "🇫🇷 Франция",
-                      "KZ": "🇰🇿 Казахстан", "JP": "🇯🇵 Япония", "SG": "🇸🇬 Сингапур"
-                  }
                   name = country_names.get(code, f"{flag} {code}")
                   return name, code
 
@@ -78,6 +80,12 @@ jobs:
                   (["SWEDEN", "ШВЕЦИЯ", "SE"], "🇸🇪 Швеция", "SE"),
                   (["FRANCE", "ФРАНЦИЯ", "FR"], "🇫🇷 Франция", "FR"),
                   (["KAZAKHSTAN", "КАЗАХСТАН", "KZ"], "🇰🇿 Казахстан", "KZ"),
+                  (["TAIWAN", "ТАЙВАНЬ", "TW"], "🇹🇼 Тайвань", "TW"),
+                  (["HONG KONG", "ГОНКОНГ", "HK"], "🇭🇰 Гонконг", "HK"),
+                  (["SINGAPORE", "СИНГАПУР", "SG"], "🇸🇬 Сингапур", "SG"),
+                  (["JAPAN", "ЯПОНИЯ", "JP"], "🇯🇵 Япония", "JP"),
+                  (["KOREA", "КОРЕЯ", "KR"], "🇰🇷 Корея", "KR"),
+                  (["CANADA", "КАНАДА", "CA"], "🇨🇦 Канада", "CA"),
               ]
               for keywords, name, code in keywords_map:
                   for kw in keywords:
@@ -110,7 +118,8 @@ jobs:
                   if not user_id or not address: return None
                   
                   network = query.get("type", ["tcp"])[0]
-                  security = query.get("security", ["none"])[0]
+                  raw_sec = query.get("security", ["none"])[0]
+                  security = raw_sec if raw_sec in ["tls", "reality"] else "none"
                   
                   outbound = {
                       "protocol": "vless",
@@ -157,7 +166,9 @@ jobs:
                   if not address or not user_id: return None
                   
                   net = data.get("net", "tcp")
-                  tls = data.get("tls", "none")
+                  raw_tls = data.get("tls", "none")
+                  stream_security = "tls" if raw_tls == "tls" else "none"
+
                   outbound = {
                       "protocol": "vmess",
                       "settings": {
@@ -167,13 +178,13 @@ jobs:
                               "users": [{"id": user_id, "alterId": int(data.get("aid", 0)), "security": "auto"}]
                           }]
                       },
-                      "streamSettings": {"network": net, "security": tls}
+                      "streamSettings": {"network": net, "security": stream_security}
                   }
                   if net == "ws":
                       outbound["streamSettings"]["wsSettings"] = {"path": data.get("path", "/"), "headers": {"Host": data.get("host", "")}}
                   elif net == "grpc":
                       outbound["streamSettings"]["grpcSettings"] = {"serviceName": data.get("path", "")}
-                  if tls == "tls":
+                  if stream_security == "tls":
                       outbound["streamSettings"]["tlsSettings"] = {"serverName": data.get("host", address)}
                   return outbound, address, port, "vmess", user_id
               except Exception:
@@ -188,12 +199,15 @@ jobs:
                   if not password or not address: return None
                   query = urllib.parse.parse_qs(parsed.query)
                   
+                  raw_sec = query.get("security", ["tls"])[0]
+                  security = "tls" if raw_sec == "tls" else "none"
+
                   outbound = {
                       "protocol": "trojan",
                       "settings": {"servers": [{"address": address, "port": int(port), "password": password}]},
-                      "streamSettings": {"network": query.get("type", ["tcp"])[0], "security": query.get("security", ["tls"])[0]}
+                      "streamSettings": {"network": query.get("type", ["tcp"])[0], "security": security}
                   }
-                  if outbound["streamSettings"]["security"] == "tls":
+                  if security == "tls":
                       outbound["streamSettings"]["tlsSettings"] = {"serverName": query.get("sni", [address])[0]}
                   return outbound, address, port, "trojan", password
               except Exception:
@@ -242,7 +256,7 @@ jobs:
               return None
 
           live_nodes = []
-          with ThreadPoolExecutor(max_workers=20) as executor:
+          with ThreadPoolExecutor(max_workers=30) as executor:
               results = executor.map(check_node, parsed_nodes)
               for r in results:
                   if r:
@@ -354,7 +368,7 @@ jobs:
           with open("sub.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(encoded_lines))
 
-          print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов в sub.json и sub.txt.")
+          print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов из {len(live_nodes)} живых узлов.")
           EOF
 
       - name: Commit and Push Changes
@@ -363,5 +377,4 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add sub.json sub.txt
           git diff --quiet && git diff --staged --quiet || (git commit -m "Generate separate JSON servers for sub [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
-
           
