@@ -1,8 +1,8 @@
-name: Update Auto-Select Xray Config
+name: Update Auto-Select Xray Config (Headers + 300 Servers)
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -18,10 +18,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests pytz
 
       - name: Process Subscription & Generate Subscriptions
         run: |
@@ -33,12 +33,22 @@ jobs:
           import socket
           import urllib.parse
           import requests
+          import time
+          from datetime import datetime, timedelta
+          import pytz
           from concurrent.futures import ThreadPoolExecutor
 
           SUB_URL = "https://subrostunnel.vercel.app/wf.txt"
-          TOTAL_MAX_SERVERS = 100
+          TOTAL_MAX_SERVERS = 300 # Увеличили лимит до 300
 
           POPULAR_ORDER = ["DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ"]
+
+          def get_expiry_timestamp():
+              """Расчет даты истечения: Москва + 10 лет в Unix timestamp"""
+              moscow_tz = pytz.timezone('Europe/Moscow')
+              now = datetime.now(moscow_tz)
+              future_date = now + timedelta(days=3650)
+              return int(future_date.timestamp())
 
           def check_tcp_alive(host, port, timeout=1.5):
               try:
@@ -242,7 +252,7 @@ jobs:
               return None
 
           live_nodes = []
-          with ThreadPoolExecutor(max_workers=20) as executor:
+          with ThreadPoolExecutor(max_workers=50) as executor:
               results = executor.map(check_node, parsed_nodes)
               for r in results:
                   if r:
@@ -345,16 +355,21 @@ jobs:
           }
           all_server_configs.append(dummy_config)
 
-          # Сохранение подписки в формате JSON-массива (sub.json)
+          # Генерация заголовков
+          expiry_ts = get_expiry_timestamp()
+          headers = f"#profile-title: VoidX VPN\n#profile-update-interval: 24\n#subscription-userinfo: upload=0; download=0; total=107374182400; expire={expiry_ts}\n"
+
+          # Сохранение подписки в формате JSON-массива (sub.json) с заголовками в начале
+          json_content = json.dumps(all_server_configs, ensure_ascii=False, indent=2)
           with open("sub.json", "w", encoding="utf-8") as f:
-              json.dump(all_server_configs, f, ensure_ascii=False, indent=2)
+              f.write(headers + json_content)
 
           # Сохранение подписки в формате Base64 строки (sub.txt)
           encoded_lines = [base64.b64encode(json.dumps(cfg, ensure_ascii=False).encode('utf-8')).decode('utf-8') for cfg in all_server_configs]
           with open("sub.txt", "w", encoding="utf-8") as f:
-              f.write("\n".join(encoded_lines))
+              f.write(headers + "\n".join(encoded_lines))
 
-          print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов в sub.json и sub.txt.")
+          print(f"Готово! Сгенерировано {len(all_server_configs)} профилей. Лимит серверов: {TOTAL_MAX_SERVERS}. Дата истечения: {expiry_ts}")
           EOF
 
       - name: Commit and Push Changes
@@ -363,4 +378,3 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add sub.json sub.txt
           git diff --quiet && git diff --staged --quiet || (git commit -m "Generate separate JSON servers for sub [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
-          
