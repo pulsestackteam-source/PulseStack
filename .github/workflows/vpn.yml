@@ -38,7 +38,12 @@ jobs:
           SUB_URL = "https://subrostunnel.vercel.app/wf.txt"
           TOTAL_MAX_SERVERS = 300
 
-          POPULAR_ORDER = ["DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ", "TW", "HK", "SG", "JP", "KR", "CA"]
+          POPULAR_ORDER = [
+              "DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ", 
+              "TW", "HK", "SG", "JP", "KR", "CA", "CH", "AT", "NO", "UA", 
+              "ES", "IT", "CZ", "RO", "BG", "AE", "TH", "BR", "LT", "LV", 
+              "MD", "AL", "EE", "GE", "IN", "AU", "EU"
+          ]
 
           def check_tcp_alive(host, port, timeout=1.5):
               try:
@@ -50,16 +55,23 @@ jobs:
           def detect_country(remark):
               text = urllib.parse.unquote(urllib.parse.unquote(remark))
               
-              flag_match = re.search(r'[\U0001F1E6-\U0001F1FF]{2}', text)
               country_names = {
                   "DE": "🇩🇪 Германия", "NL": "🇳🇱 Нидерланды", "US": "🇺🇸 США",
                   "FI": "🇫🇮 Финляндия", "PL": "🇵🇱 Польша", "GB": "🇬🇧 Великобритания",
                   "TR": "🇹🇷 Турция", "SE": "🇸🇪 Швеция", "FR": "🇫🇷 Франция",
                   "KZ": "🇰🇿 Казахстан", "JP": "🇯🇵 Япония", "SG": "🇸🇬 Сингапур",
                   "TW": "🇹🇼 Тайвань", "HK": "🇭🇰 Гонконг", "KR": "🇰🇷 Корея",
-                  "CA": "🇨🇦 Канада", "IN": "🇮🇳 Индия", "AU": "🇦🇺 Австралия"
+                  "CA": "🇨🇦 Канада", "IN": "🇮🇳 Индия", "AU": "🇦🇺 Австралия",
+                  "AL": "🇦🇱 Албания", "NO": "🇳🇴 Норвегия", "BR": "🇧🇷 Бразилия",
+                  "TH": "🇹🇭 Таиланд", "AT": "🇦🇹 Австрия", "AE": "🇦🇪 ОАЭ",
+                  "LT": "🇱🇹 Литва", "MD": "🇲🇩 Молдова", "EU": "🇪🇺 Европа",
+                  "CH": "🇨🇭 Швейцария", "LV": "🇱🇻 Латвия", "IT": "🇮🇹 Италия",
+                  "ES": "🇪🇸 Испания", "RO": "🇷🇴 Румыния", "EE": "🇪🇪 Эстония",
+                  "CZ": "🇨🇿 Чехия", "BG": "🇧🇬 Болгария", "GE": "🇬🇪 Грузия",
+                  "UA": "🇺🇦 Украина"
               }
 
+              flag_match = re.search(r'[\U0001F1E6-\U0001F1FF]{2}', text)
               if flag_match:
                   flag = flag_match.group(0)
                   c1 = chr(ord(flag[0]) - 0x1F1E6 + ord('A'))
@@ -86,6 +98,24 @@ jobs:
                   (["JAPAN", "ЯПОНИЯ", "JP"], "🇯🇵 Япония", "JP"),
                   (["KOREA", "КОРЕЯ", "KR"], "🇰🇷 Корея", "KR"),
                   (["CANADA", "КАНАДА", "CA"], "🇨🇦 Канада", "CA"),
+                  (["ALBANIA", "АЛБАНИЯ", "AL"], "🇦🇱 Албания", "AL"),
+                  (["NORWAY", "НОРВЕГИЯ", "NO"], "🇳🇴 Норвегия", "NO"),
+                  (["BRAZIL", "БРАЗИЛИЯ", "BR"], "🇧🇷 Бразилия", "BR"),
+                  (["THAILAND", "ТАИЛАНД", "TH"], "🇹🇭 Таиланд", "TH"),
+                  (["AUSTRIA", "АВСТРИЯ", "AT"], "🇦🇹 Австрия", "AT"),
+                  (["UAE", "EMIRATES", "ОАЭ", "AE"], "🇦🇪 ОАЭ", "AE"),
+                  (["LITHUANIA", "ЛИТВА", "LT"], "🇱🇹 Литва", "LT"),
+                  (["MOLDOVA", "МОЛДОВА", "MD"], "🇲🇩 Молдова", "MD"),
+                  (["EUROPE", "ЕВРОПА", "EU"], "🇪🇺 Европа", "EU"),
+                  (["SWITZERLAND", "ШВЕЙЦАРИЯ", "CH"], "🇨🇭 Швейцария", "CH"),
+                  (["LATVIA", "ЛАТВИЯ", "LV"], "🇱🇻 Латвия", "LV"),
+                  (["ITALY", "ИТАЛИЯ", "IT"], "🇮🇹 Италия", "IT"),
+                  (["SPAIN", "ИСПАНИЯ", "ES"], "🇪🇸 Испания", "ES"),
+                  (["ROMANIA", "РУМЫНИЯ", "RO"], "🇷🇴 Румыния", "RO"),
+                  (["ESTONIA", "ЭСТОНИЯ", "EE"], "🇪🇪 Эстония", "EE"),
+                  (["CZECH", "ЧЕХИЯ", "CZ"], "🇨🇿 Чехия", "CZ"),
+                  (["BULGARIA", "БОЛГАРИЯ", "BG"], "🇧🇬 Болгария", "BG"),
+                  (["GEORGIA", "ГРУЗИЯ", "GE"], "🇬🇪 Грузия", "GE"),
               ]
               for keywords, name, code in keywords_map:
                   for kw in keywords:
