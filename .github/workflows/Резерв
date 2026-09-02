@@ -36,9 +36,92 @@ jobs:
           from concurrent.futures import ThreadPoolExecutor
 
           SUB_URL = "https://subrostunnel.vercel.app/wf.txt"
-          TOTAL_MAX_SERVERS = 100
+          TOTAL_MAX_SERVERS = 300
 
-          POPULAR_ORDER = ["DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ"]
+          POPULAR_ORDER = [
+              "DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ", 
+              "TW", "HK", "SG", "JP", "KR", "CA", "CH", "AT", "NO", "UA", 
+              "ES", "IT", "CZ", "RO", "BG", "AE", "TH", "BR", "LT", "LV", 
+              "MD", "AL", "EE", "GE", "IN", "AU", "EU"
+          ]
+
+          COUNTRY_DICTIONARY = {
+              "DE": ("🇩🇪 Германия", "DE"),
+              "NL": ("🇳🇱 Нидерланды", "NL"),
+              "US": ("🇺🇸 США", "US"),
+              "FI": ("🇫🇮 Финляндия", "FI"),
+              "PL": ("🇵🇱 Польша", "PL"),
+              "GB": ("🇬🇧 Великобритания", "GB"),
+              "TR": ("🇹🇷 Турция", "TR"),
+              "SE": ("🇸🇪 Швеция", "SE"),
+              "FR": ("🇫🇷 Франция", "FR"),
+              "KZ": ("🇰🇿 Казахстан", "KZ"),
+              "JP": ("🇯🇵 Япония", "JP"),
+              "SG": ("🇸🇬 Сингапур", "SG"),
+              "TW": ("🇹🇼 Тайвань", "TW"),
+              "HK": ("🇭🇰 Гонконг", "HK"),
+              "KR": ("🇰🇷 Корея", "KR"),
+              "CA": ("🇨🇦 Канада", "CA"),
+              "IN": ("🇮🇳 Индия", "IN"),
+              "AU": ("🇦🇺 Австралия", "AU"),
+              "AL": ("🇦🇱 Албания", "AL"),
+              "NO": ("🇳🇴 Норвегия", "NO"),
+              "BR": ("🇧🇷 Бразилия", "BR"),
+              "TH": ("🇹🇭 Таиланд", "TH"),
+              "AT": ("🇦🇹 Австрия", "AT"),
+              "AE": ("🇦🇪 ОАЭ", "AE"),
+              "LT": ("🇱🇹 Литва", "LT"),
+              "MD": ("🇲🇩 Молдова", "MD"),
+              "EU": ("🇪🇺 Европа", "EU"),
+              "CH": ("🇨🇭 Швейцария", "CH"),
+              "LV": ("🇱🇻 Латвия", "LV"),
+              "IT": ("🇮🇹 Италия", "IT"),
+              "ES": ("🇪🇸 Испания", "ES"),
+              "RO": ("🇷🇴 Румыния", "RO"),
+              "EE": ("🇪🇪 Эстония", "EE"),
+              "CZ": ("🇨🇿 Чехия", "CZ"),
+              "BG": ("🇧🇬 Болгария", "BG"),
+              "GE": ("🇬🇪 Грузия", "GE"),
+              "UA": ("🇺🇦 Украина", "UA")
+          }
+
+          TEXT_KEYWORDS = [
+              (["GERMANY", "ГЕРМАНИЯ"], "DE"),
+              (["NETHERLANDS", "НИДЕРЛАНДЫ"], "NL"),
+              (["USA", "UNITED STATES", "США"], "US"),
+              (["FINLAND", "ФИНЛЯНДИЯ"], "FI"),
+              (["POLAND", "ПОЛЬША"], "PL"),
+              (["UNITED KINGDOM", "GREAT BRITAIN", "ВЕЛИКОБРИТАНИЯ"], "GB"),
+              (["TURKEY", "ТУРЦИЯ"], "TR"),
+              (["SWEDEN", "ШВЕЦИЯ"], "SE"),
+              (["FRANCE", "ФРАНЦИЯ"], "FR"),
+              (["KAZAKHSTAN", "КАЗАХСТАН"], "KZ"),
+              (["TAIWAN", "ТАЙВАНЬ"], "TW"),
+              (["HONG KONG", "ГОНКОНГ"], "HK"),
+              (["SINGAPORE", "СИНГАПУР"], "SG"),
+              (["JAPAN", "ЯПОНИЯ"], "JP"),
+              (["KOREA", "КОРЕЯ"], "KR"),
+              (["CANADA", "КАНАДА"], "CA"),
+              (["ALBANIA", "АЛБАНИЯ"], "AL"),
+              (["NORWAY", "НОРВЕГИЯ"], "NO"),
+              (["BRAZIL", "БРАЗИЛИЯ"], "BR"),
+              (["THAILAND", "ТАИЛАНД"], "TH"),
+              (["AUSTRIA", "АВСТРИЯ"], "AT"),
+              (["EMIRATES", "ОАЭ"], "AE"),
+              (["LITHUANIA", "ЛИТВА"], "LT"),
+              (["MOLDOVA", "МОЛДОВА"], "MD"),
+              (["EUROPE", "ЕВРОПА"], "EU"),
+              (["SWITZERLAND", "ШВЕЙЦАРИЯ"], "CH"),
+              (["LATVIA", "ЛАТВИЯ"], "LV"),
+              (["ITALY", "ИТАЛИЯ"], "IT"),
+              (["SPAIN", "ИСПАНИЯ"], "ES"),
+              (["ROMANIA", "РУМЫНИЯ"], "RO"),
+              (["ESTONIA", "ЭСТОНИЯ"], "EE"),
+              (["CZECH", "ЧЕХИЯ"], "CZ"),
+              (["BULGARIA", "БОЛГАРИЯ"], "BG"),
+              (["GEORGIA", "ГРУЗИЯ"], "GE"),
+              (["UKRAINE", "УКРАИНА"], "UA")
+          ]
 
           def check_tcp_alive(host, port, timeout=1.5):
               try:
@@ -48,41 +131,30 @@ jobs:
                   return False
 
           def detect_country(remark):
-              text = urllib.parse.unquote(urllib.parse.unquote(remark))
+              text = urllib.parse.unquote(urllib.parse.unquote(remark)).strip()
+              upper_text = text.upper()
               
+              # 1. Проверка по эмодзи-флагу
               flag_match = re.search(r'[\U0001F1E6-\U0001F1FF]{2}', text)
               if flag_match:
                   flag = flag_match.group(0)
                   c1 = chr(ord(flag[0]) - 0x1F1E6 + ord('A'))
                   c2 = chr(ord(flag[1]) - 0x1F1E6 + ord('A'))
                   code = f"{c1}{c2}"
-                  
-                  country_names = {
-                      "DE": "🇩🇪 Германия", "NL": "🇳🇱 Нидерланды", "US": "🇺🇸 США",
-                      "FI": "🇫🇮 Финляндия", "PL": "🇵🇱 Польша", "GB": "🇬🇧 Великобритания",
-                      "TR": "🇹🇷 Турция", "SE": "🇸🇪 Швеция", "FR": "🇫🇷 Франция",
-                      "KZ": "🇰🇿 Казахстан", "JP": "🇯🇵 Япония", "SG": "🇸🇬 Сингапур"
-                  }
-                  name = country_names.get(code, f"{flag} {code}")
-                  return name, code
+                  if code in COUNTRY_DICTIONARY:
+                      return COUNTRY_DICTIONARY[code]
+                  return f"{flag} {code}", code
 
-              upper_text = text.upper()
-              keywords_map = [
-                  (["GERMANY", "ГЕРМАНИЯ", "DE"], "🇩🇪 Германия", "DE"),
-                  (["NETHERLANDS", "НИДЕРЛАНДЫ", "NL"], "🇳🇱 Нидерланды", "NL"),
-                  (["USA", "UNITED STATES", "США", "US"], "🇺🇸 США", "US"),
-                  (["FINLAND", "ФИНЛЯНДИЯ", "FI"], "🇫🇮 Финляндия", "FI"),
-                  (["POLAND", "ПОЛЬША", "PL"], "🇵🇱 Польша", "PL"),
-                  (["UK", "GREAT BRITAIN", "ВЕЛИКОБРИТАНИЯ", "GB"], "🇬🇧 Великобритания", "GB"),
-                  (["TURKEY", "ТУРЦИЯ", "TR"], "🇹🇷 Турция", "TR"),
-                  (["SWEDEN", "ШВЕЦИЯ", "SE"], "🇸🇪 Швеция", "SE"),
-                  (["FRANCE", "ФРАНЦИЯ", "FR"], "🇫🇷 Франция", "FR"),
-                  (["KAZAKHSTAN", "КАЗАХСТАН", "KZ"], "🇰🇿 Казахстан", "KZ"),
-              ]
-              for keywords, name, code in keywords_map:
+              # 2. Поиск совпадений по ISO-кодам как отдельным словам (например, "AL", "NO", "BR")
+              for code, (rus_name, c_code) in COUNTRY_DICTIONARY.items():
+                  if re.search(r'\b' + re.escape(code) + r'\b', upper_text):
+                      return rus_name, c_code
+
+              # 3. Поиск по названиям стран (например, "GERMANY", "НОРВЕГИЯ")
+              for keywords, code in TEXT_KEYWORDS:
                   for kw in keywords:
                       if kw in upper_text:
-                          return name, code
+                          return COUNTRY_DICTIONARY[code]
 
               return "🌐 Другие", "OTHER"
 
@@ -110,7 +182,8 @@ jobs:
                   if not user_id or not address: return None
                   
                   network = query.get("type", ["tcp"])[0]
-                  security = query.get("security", ["none"])[0]
+                  raw_sec = query.get("security", ["none"])[0]
+                  security = raw_sec if raw_sec in ["tls", "reality"] else "none"
                   
                   outbound = {
                       "protocol": "vless",
@@ -157,7 +230,9 @@ jobs:
                   if not address or not user_id: return None
                   
                   net = data.get("net", "tcp")
-                  tls = data.get("tls", "none")
+                  raw_tls = data.get("tls", "none")
+                  stream_security = "tls" if raw_tls == "tls" else "none"
+
                   outbound = {
                       "protocol": "vmess",
                       "settings": {
@@ -167,13 +242,13 @@ jobs:
                               "users": [{"id": user_id, "alterId": int(data.get("aid", 0)), "security": "auto"}]
                           }]
                       },
-                      "streamSettings": {"network": net, "security": tls}
+                      "streamSettings": {"network": net, "security": stream_security}
                   }
                   if net == "ws":
                       outbound["streamSettings"]["wsSettings"] = {"path": data.get("path", "/"), "headers": {"Host": data.get("host", "")}}
                   elif net == "grpc":
                       outbound["streamSettings"]["grpcSettings"] = {"serviceName": data.get("path", "")}
-                  if tls == "tls":
+                  if stream_security == "tls":
                       outbound["streamSettings"]["tlsSettings"] = {"serverName": data.get("host", address)}
                   return outbound, address, port, "vmess", user_id
               except Exception:
@@ -188,12 +263,15 @@ jobs:
                   if not password or not address: return None
                   query = urllib.parse.parse_qs(parsed.query)
                   
+                  raw_sec = query.get("security", ["tls"])[0]
+                  security = "tls" if raw_sec == "tls" else "none"
+
                   outbound = {
                       "protocol": "trojan",
                       "settings": {"servers": [{"address": address, "port": int(port), "password": password}]},
-                      "streamSettings": {"network": query.get("type", ["tcp"])[0], "security": query.get("security", ["tls"])[0]}
+                      "streamSettings": {"network": query.get("type", ["tcp"])[0], "security": security}
                   }
-                  if outbound["streamSettings"]["security"] == "tls":
+                  if security == "tls":
                       outbound["streamSettings"]["tlsSettings"] = {"serverName": query.get("sni", [address])[0]}
                   return outbound, address, port, "trojan", password
               except Exception:
@@ -242,7 +320,7 @@ jobs:
               return None
 
           live_nodes = []
-          with ThreadPoolExecutor(max_workers=20) as executor:
+          with ThreadPoolExecutor(max_workers=30) as executor:
               results = executor.map(check_node, parsed_nodes)
               for r in results:
                   if r:
@@ -354,7 +432,7 @@ jobs:
           with open("sub.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(encoded_lines))
 
-          print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов в sub.json и sub.txt.")
+          print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов из {len(live_nodes)} живых узлов.")
           EOF
 
       - name: Commit and Push Changes
@@ -363,4 +441,4 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add sub.json sub.txt
           git diff --quiet && git diff --staged --quiet || (git commit -m "Generate separate JSON servers for sub [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
-
+          
