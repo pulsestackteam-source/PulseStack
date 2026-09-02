@@ -2,8 +2,8 @@ name: Update Auto-Select Xray Config
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Запуск каждый час
-  workflow_dispatch:      # Возможность ручного запуска
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,319 +23,330 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Process Subscriptions & Generate Output
-        env:
-          PYTHON_SCRIPT: |
-            import base64
-            import copy
-            import json
-            import re
-            import urllib.parse
-            import requests
-
-            URL_WF = "https://subrostunnel.vercel.app/wf.txt"
-            URL_LTE = "https://subrostunnel.vercel.app/lte.txt"
-
-            POPULAR_ORDER = [
-                "DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ", 
-                "TW", "HK", "SG", "JP", "KR", "CA", "CH", "AT", "NO", "UA", 
-                "ES", "IT", "CZ", "RO", "BG", "AE", "TH", "BR", "LT", "LV", 
-                "MD", "AL", "EE", "GE", "IN", "AU", "EU"
-            ]
-
-            COUNTRY_DICTIONARY = {
-                "DE": ("🇩 Германия", "DE"), "NL": ("🇱 Нидерланды", "NL"),
-                "US": ("🇺 США", "US"), "FI": ("🇮 Финляндия", "FI"),
-                "PL": ("🇵 Польша", "PL"), "GB": ("🇬🇧 Великобритания", "GB"),
-                "TR": ("🇹🇷 Турция", "TR"), "SE": ("🇪 Швеция", "SE"),
-                "FR": ("🇫🇷 Франция", "FR"), "KZ": ("🇰🇿 Казахстан", "KZ"),
-                "JP": ("🇯🇵 Япония", "JP"), "SG": ("🇸 Сингапур", "SG"),
-                "TW": ("🇹🇼 Тайвань", "TW"), "HK": ("🇭 Гонконг", "HK"),
-                "KR": ("🇰🇷 Корея", "KR"), "CA": ("🇨 Канада", "CA"),
-                "IN": ("🇮🇳 Индия", "IN"), "AU": ("🇦🇺 Австралия", "AU"),
-                "AL": ("🇱 Албания", "AL"), "NO": ("🇳🇴 Норвегия", "NO"),
-                "BR": ("🇷 Бразилия", "BR"), "TH": ("🇹🇭 Таиланд", "TH"),
-                "AT": ("🇹 Австрия", "AT"), "AE": ("🇦🇪 ОАЭ", "AE"),
-                "LT": ("🇹 Литва", "LT"), "MD": ("🇲🇩 Молдова", "MD"),
-                "EU": ("🇪🇺 Европа", "EU"), "CH": ("🇨🇭 Швейцария", "CH"),
-                "LV": ("🇱🇻 Латвия", "LV"), "IT": ("🇮🇹 Италия", "IT"),
-                "ES": ("🇪 Испания", "ES"), "RO": ("🇷🇴 Румыния", "RO"),
-                "EE": ("🇪🇪 Эстония", "EE"), "CZ": ("🇨🇿 Чехия", "CZ"),
-                "BG": ("🇧 Болгария", "BG"), "GE": ("🇬🇪 Грузия", "GE"),
-                "UA": ("🇺 Украина", "UA")
-            }
-
-            TEXT_KEYWORDS = [
-                (["GERMANY", "ГЕРМАНИЯ"], "DE"), (["NETHERLANDS", "НИДЕРЛАНДЫ"], "NL"),
-                (["USA", "UNITED STATES", "США"], "US"), (["FINLAND", "ФИНЛЯНДИЯ"], "FI"),
-                (["POLAND", "ПОЛЬША"], "PL"), (["UNITED KINGDOM", "GREAT BRITAIN", "ВЕЛИКОБРИТАНИЯ"], "GB"),
-                (["TURKEY", "ТУРЦИЯ"], "TR"), (["SWEDEN", "ШВЕЦИЯ"], "SE"),
-                (["FRANCE", "ФРАНЦИЯ"], "FR"), (["KAZAKHSTAN", "КАЗАХСТАН"], "KZ"),
-                (["TAIWAN", "ТАЙВАНЬ"], "TW"), (["HONG KONG", "ГОНКОНГ"], "HK"),
-                (["SINGAPORE", "СИНГАПУР"], "SG"), (["JAPAN", "ЯПОНИЯ"], "JP"),
-                (["KOREA", "КОРЕЯ"], "KR"), (["CANADA", "КАНАДА"], "CA"),
-                (["ALBANIA", "АЛБАНИЯ"], "AL"), (["NORWAY", "НОРВЕГИЯ"], "NO"),
-                (["BRAZIL", "БРАЗИЛИЯ"], "BR"), (["THAILAND", "ТАИЛАНД"], "TH"),
-                (["AUSTRIA", "АВСТРИЯ"], "AT"), (["EMIRATES", "ОАЭ"], "AE"),
-                (["LITHUANIA", "ЛИТВА"], "LT"), (["MOLDOVA", "МОЛДОВА"], "MD"),
-                (["EUROPE", "ЕВРОПА"], "EU"), (["SWITZERLAND", "ШВЕЙЦАРИЯ"], "CH"),
-                (["LATVIA", "ЛАТВИЯ"], "LV"), (["ITALY", "ИТАЛИЯ"], "IT"),
-                (["SPAIN", "ИСПАНИЯ"], "ES"), (["ROMANIA", "РУМЫНИЯ"], "RO"),
-                (["ESTONIA", "ЭСТОНИЯ"], "EE"), (["CZECH", "ЧЕХИЯ"], "CZ"),
-                (["BULGARIA", "БОЛГАРИЯ"], "BG"), (["GEORGIA", "ГРУЗИЯ"], "GE"),
-                (["UKRAINE", "УКРАИНА"], "UA")
-            ]
-
-            def clean_remark(remark):
-                if not remark: return ""
-                text = remark.strip()
-                try:
-                    text = urllib.parse.unquote(text)
-                    text = urllib.parse.unquote(text)
-                except Exception: pass
-                return text.strip()
-
-            def detect_country(remark):
-                text = clean_remark(remark)
-                upper_text = text.upper()
-                
-                flag_match = re.search(r'[\U0001F1E6-\U0001F1FF]{2}', text)
-                if flag_match:
-                    flag = flag_match.group(0)
-                    c1 = chr(ord(flag[0]) - 0x1F1E6 + ord('A'))
-                    c2 = chr(ord(flag[1]) - 0x1F1E6 + ord('A'))
-                    code = f"{c1}{c2}"
-                    if code in COUNTRY_DICTIONARY: return COUNTRY_DICTIONARY[code]
-                    return f"{flag} {code}", code
-
-                for code, (rus_name, c_code) in COUNTRY_DICTIONARY.items():
-                    if re.search(r'\b' + re.escape(code) + r'\b', upper_text):
-                        return rus_name, c_code
-
-                for keywords, code in TEXT_KEYWORDS:
-                    for kw in keywords:
-                        if kw in upper_text: return COUNTRY_DICTIONARY[code]
-
-                return "🌐 Другие", "OTHER"
-
-            def fetch_and_decode(url):
-                try:
-                    resp = requests.get(url, timeout=15)
-                    resp.raise_for_status()
-                    content = resp.text.strip()
-                    missing_padding = len(content) % 4
-                    if missing_padding: content += '=' * (4 - missing_padding)
-                    decoded_bytes = base64.b64decode(content)
-                    return decoded_bytes.decode('utf-8', errors='ignore').splitlines()
-                except Exception as e:
-                    print(f"Error fetching/decoding {url}: {e}")
-                    return []
-
-            def parse_vless(uri, remark):
-                try:
-                    parsed = urllib.parse.urlparse(uri)
-                    query = urllib.parse.parse_qs(parsed.query)
-                    user_id = parsed.username
-                    address = parsed.hostname
-                    port = parsed.port or 443
-                    if not user_id or not address: return None
-                    
-                    network = query.get("type", ["tcp"])[0]
-                    raw_sec = query.get("security", ["none"])[0]
-                    security = raw_sec if raw_sec in ["tls", "reality"] else "none"
-                    
-                    outbound = {
-                        "protocol": "vless",
-                        "settings": {"vnext": [{"address": address, "port": int(port), 
-                            "users": [{"id": user_id, "encryption": query.get("encryption", ["none"])[0], 
-                                      "flow": query.get("flow", [""])[0]}]}]},
-                        "streamSettings": {"network": network, "security": security}
-                    }
-                    if network == "grpc":
-                        outbound["streamSettings"]["grpcSettings"] = {"serviceName": query.get("serviceName", query.get("path", [""]))[0]}
-                    elif network == "ws":
-                        outbound["streamSettings"]["wsSettings"] = {"path": query.get("path", ["/"])[0], "headers": {"Host": query.get("host", [""])[0]}}
-
-                    if security == "reality":
-                        pbk = query.get("pbk", [""])[0]
-                        if not pbk: return None
-                        outbound["streamSettings"]["realitySettings"] = {
-                            "serverName": query.get("sni", [""])[0], "publicKey": pbk,
-                            "fingerprint": query.get("fp", ["chrome"])[0], "shortId": query.get("sid", [""])[0]
-                        }
-                    elif security == "tls":
-                        outbound["streamSettings"]["tlsSettings"] = {
-                            "serverName": query.get("sni", [""])[0], "fingerprint": query.get("fp", ["chrome"])[0]
-                        }
-                    return outbound, address, port, "vless", user_id
-                except Exception: return None
-
-            def parse_vmess(uri, remark):
-                try:
-                    b64_str = uri[8:].split("#")[0]
-                    b64_str += "=" * (-len(b64_str) % 4)
-                    data = json.loads(base64.b64decode(b64_str).decode('utf-8', errors='ignore'))
-                    address = data.get("add"); port = int(data.get("port", 443)); user_id = data.get("id")
-                    if not address or not user_id: return None
-                    
-                    net = data.get("net", "tcp"); stream_security = "tls" if data.get("tls") == "tls" else "none"
-                    outbound = {
-                        "protocol": "vmess",
-                        "settings": {"vnext": [{"address": address, "port": port, 
-                            "users": [{"id": user_id, "alterId": int(data.get("aid", 0)), "security": "auto"}]}]},
-                        "streamSettings": {"network": net, "security": stream_security}
-                    }
-                    if net == "ws":
-                        outbound["streamSettings"]["wsSettings"] = {"path": data.get("path", "/"), "headers": {"Host": data.get("host", "")}}
-                    elif net == "grpc":
-                        outbound["streamSettings"]["grpcSettings"] = {"serviceName": data.get("path", "")}
-                    if stream_security == "tls":
-                        outbound["streamSettings"]["tlsSettings"] = {"serverName": data.get("host", address)}
-                    return outbound, address, port, "vmess", user_id
-                except Exception: return None
-
-            def parse_trojan(uri, remark):
-                try:
-                    parsed = urllib.parse.urlparse(uri)
-                    password = parsed.username; address = parsed.hostname; port = parsed.port or 443
-                    if not password or not address: return None
-                    query = urllib.parse.parse_qs(parsed.query)
-                    raw_sec = query.get("security", ["tls"])[0]
-                    security = "tls" if raw_sec == "tls" else "none"
-                    
-                    outbound = {
-                        "protocol": "trojan",
-                        "settings": {"servers": [{"address": address, "port": int(port), "password": password}]},
-                        "streamSettings": {"network": query.get("type", ["tcp"])[0], "security": security}
-                    }
-                    if security == "tls":
-                        outbound["streamSettings"]["tlsSettings"] = {"serverName": query.get("sni", [address])[0]}
-                    return outbound, address, port, "trojan", password
-                except Exception: return None
-
-            def parse_node(line):
-                line = line.strip()
-                if not line: return None
-                raw_remark = line.split("#")[1] if "#" in line else ""
-                remark = clean_remark(raw_remark)
-                
-                if line.startswith("vless://"): return parse_vless(line, remark), remark
-                elif line.startswith("vmess://"): return parse_vmess(line, remark), remark
-                elif line.startswith("trojan://"): return parse_trojan(line, remark), remark
-                return None
-
-            def process_source_nodes(url):
-                raw_lines = fetch_and_decode(url)
-                candidate_lines = raw_lines[1:] if len(raw_lines) > 1 else raw_lines
-                parsed_nodes = []; seen_keys = set()
-
-                for line in candidate_lines:
-                    res = parse_node(line)
-                    if not res or not res[0]: continue
-                    outbound_data, remark = res
-                    outbound, address, port, proto, auth_key = outbound_data
-                    
-                    dedup_key = f"{proto}://{auth_key}@{address}:{port}"
-                    if dedup_key in seen_keys: continue
-                    seen_keys.add(dedup_key)
-
-                    country_name, country_code = detect_country(remark)
-                    parsed_nodes.append({"outbound": outbound, "address": address, "port": port, 
-                                       "country_name": country_name, "country_code": country_code})
-                return parsed_nodes
-
-            def build_standalone_json(title, nodes_list):
-                outbounds = []
-                real_tags = []
-
-                for idx, item in enumerate(nodes_list, start=1):
-                    ob = copy.deepcopy(item["outbound"])
-                    tag = f"proxy-{idx}"
-                    ob["tag"] = tag
-                    outbounds.append(ob)
-                    real_tags.append(tag)
-
-                balancer_tag = "balancer-" + title.replace(" ", "-").lower().replace("-", "--")
-                
-                return {
-                    "dns": {"servers": ["https://1.1.1.1/dns-query", "https://1.0.0.1/dns-query"], "queryStrategy": "UseIPv4"},
-                    "routing": {
-                        "rules": [
-                            {"port": "53", "type": "field", "network": "tcp,udp", "outboundTag": "dns-out"},
-                            {"type": "field", "ip": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8"], "outboundTag": "direct"},
-                            {"type": "field", "domain": ["regexp:.*\\.ru$", "domain:ya.ru", "domain:vk.com"], "outboundTag": "direct"},
-                            {"type": "field", "network": "tcp,udp", "balancerTag": balancer_tag}
-                        ],
-                        "balancers": [{
-                            "tag": balancer_tag, "selector": ["proxy-"], 
-                            "strategy": {"type": "leastPing"}, "fallbackTag": real_tags[0] if real_tags else "direct"
-                        }],
-                        "domainMatcher": "hybrid", "domainStrategy": "AsIs"
-                    },
-                    "inbounds": [
-                        {"tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": {"udp": True}},
-                        {"tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http"}
-                    ],
-                    "outbounds": outbounds + [
-                        {"tag": "direct", "protocol": "freedom", "settings": {}},
-                        {"tag": "block", "protocol": "blackhole", "settings": {"response": {"type": "none"}}},
-                        {"tag": "dns-out", "protocol": "dns", "settings": {"blockTypes": [65, 28], "nonIPQuery": "reject"}}
-                    ],
-                    "burstObservatory": {
-                        "pingConfig": {
-                            "timeout": "3s", "interval": "30s", "sampling": 2,
-                            "destination": "http://www.gstatic.com/generate_204", "connectivity": ""
-                        },
-                        "subjectSelector": ["proxy-"]
-                    },
-                    "remarks": title
-                }
-
-            all_server_configs = []
-            nodes_wf = process_source_nodes(URL_WF)
-            nodes_lte = process_source_nodes(URL_LTE)
-
-            # 1. АВТО ВЫБОР (WF) - С ФЛАГОМ ЕС
-            if nodes_wf:
-                auto_wf = build_standalone_json("🇪🇺 Авто выбор", nodes_wf)
-                all_server_configs.append(auto_wf)
-
-            # 2. АВТО - ОБХОД ГЛУШИЛОК (LTE) - С ФЛАГОМ ЕС
-            if nodes_lte:
-                auto_lte = build_standalone_json("🇪 Авто - Обход глушилок", nodes_lte)
-                all_server_configs.append(auto_lte)
-
-            # 3. СТРАНЫ (ТОЛЬКО WF, БЕЗ LTE)
-            if nodes_wf:
-                by_country = {}
-                for node in nodes_wf:
-                    code = node["country_code"]
-                    if code not in by_country:
-                        by_country[code] = {"name": node["country_name"], "nodes": []}
-                    by_country[code]["nodes"].append(node)
-
-                sorted_codes = sorted(by_country.keys(), key=lambda c: POPULAR_ORDER.index(c) if c in POPULAR_ORDER else 999)
-
-                for code in sorted_codes:
-                    group = by_country[code]
-                    c_config = build_standalone_json(group["name"], group["nodes"])
-                    all_server_configs.append(c_config)
-
-            if not all_server_configs:
-                raise ValueError("Не найдено ни одного сервера!")
-
-            # Сохранение в sub.json
-            with open("sub.json", "w", encoding="utf-8") as f:
-                json.dump(all_server_configs, f, ensure_ascii=False, indent=2)
-
-            # Сохранение в sub.txt
-            encoded_lines = [base64.b64encode(json.dumps(cfg, ensure_ascii=False).encode('utf-8')).decode('utf-8') for cfg in all_server_configs]
-            with open("sub.txt", "w", encoding="utf-8") as f:
-                f.write("\n".join(encoded_lines))
-
-            print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов.")
+      - name: Generate Config
         run: |
-          python3 -c "$PYTHON_SCRIPT"
+          python3 << 'PYTHON_SCRIPT'
+          import base64, copy, json, re, urllib.parse, requests
+
+          URL_WF = "https://subrostunnel.vercel.app/wf.txt"
+          URL_LTE = "https://subrostunnel.vercel.app/lte.txt"
+
+          POPULAR_ORDER = [
+              "DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ", 
+              "TW", "HK", "SG", "JP", "KR", "CA", "CH", "AT", "NO", "UA", 
+              "ES", "IT", "CZ", "RO", "BG", "AE", "TH", "BR", "LT", "LV", 
+              "MD", "AL", "EE", "GE", "IN", "AU", "EU"
+          ]
+
+          # Используем unicode_escape для гарантированной работы эмодзи в CI
+          COUNTRY_DICTIONARY = {
+              "DE": ("\U0001f1e9\U0001f1ea Германия", "DE"),
+              "NL": ("\U0001f1f3\U0001f1f1 Нидерланды", "NL"),
+              "US": ("\U0001f1fa\U0001f1f8 США", "US"),
+              "FI": ("\U0001f1eb\U0001f1ee Финляндия", "FI"),
+              "PL": ("\U0001f1f5\U0001f1f1 Польша", "PL"),
+              "GB": ("\U0001f1ec\U0001f1e7 Великобритания", "GB"),
+              "TR": ("\U0001f1f9\U0001f1f7 Турция", "TR"),
+              "SE": ("\U0001f1f8\U0001f1ea Швеция", "SE"),
+              "FR": ("\U0001f1eb\U0001f1f7 Франция", "FR"),
+              "KZ": ("\U0001f1f0\U0001f1ff Казахстан", "KZ"),
+              "JP": ("\U0001f1ef\U0001f1f5 Япония", "JP"),
+              "SG": ("\U0001f1f8\U0001f1ec Сингапур", "SG"),
+              "TW": ("\U0001f1f9\U0001f1fc Тайвань", "TW"),
+              "HK": ("\U0001f1ed\U0001f1f0 Гонконг", "HK"),
+              "KR": ("\U0001f1f0\U0001f1f7 Корея", "KR"),
+              "CA": ("\U0001f1e8\U0001f1e6 Канада", "CA"),
+              "IN": ("\U0001f1ee\U0001f1f3 Индия", "IN"),
+              "AU": ("\U0001f1e6\U0001f1fa Австралия", "AU"),
+              "AL": ("\U0001f1e6\U0001f1f1 Албания", "AL"),
+              "NO": ("\U0001f1f3\U0001f1f4 Норвегия", "NO"),
+              "BR": ("\U0001f1e7\U0001f1f7 Бразилия", "BR"),
+              "TH": ("\U0001f1f9\U0001f1ed Таиланд", "TH"),
+              "AT": ("\U0001f1e6\U0001f1f9 Австрия", "AT"),
+              "AE": ("\U0001f1e6\U0001f1ea ОАЭ", "AE"),
+              "LT": ("\U0001f1f1\U0001f1f9 Литва", "LT"),
+              "MD": ("\U0001f1f2\U0001f1e9 Молдова", "MD"),
+              "EU": ("\U0001f1ea\U0001f1fa Европа", "EU"),
+              "CH": ("\U0001f1e8\U0001f1ed Швейцария", "CH"),
+              "LV": ("\U0001f1f1\U0001f1fb Латвия", "LV"),
+              "IT": ("\U0001f1ee\U0001f1f9 Италия", "IT"),
+              "ES": ("\U0001f1ea\U0001f1f8 Испания", "ES"),
+              "RO": ("\U0001f1f7\U0001f1f4 Румыния", "RO"),
+              "EE": ("\U0001f1ea\U0001f1ea Эстония", "EE"),
+              "CZ": ("\U0001f1e8\U0001f1ff Чехия", "CZ"),
+              "BG": ("\U0001f1e7\U0001f1ec Болгария", "BG"),
+              "GE": ("\U0001f1ec\U0001f1ea Грузия", "GE"),
+              "UA": ("\U0001f1fa\U0001f1e6 Украина", "UA")
+          }
+
+          TEXT_KEYWORDS = [
+              (["GERMANY", "ГЕРМАНИЯ"], "DE"), (["NETHERLANDS", "НИДЕРЛАНДЫ"], "NL"),
+              (["USA", "UNITED STATES", "США"], "US"), (["FINLAND", "ФИНЛЯНДИЯ"], "FI"),
+              (["POLAND", "ПОЛЬША"], "PL"), (["UNITED KINGDOM", "GREAT BRITAIN", "ВЕЛИКОБРИТАНИЯ"], "GB"),
+              (["TURKEY", "ТУРЦИЯ"], "TR"), (["SWEDEN", "ШВЕЦИЯ"], "SE"),
+              (["FRANCE", "ФРАНЦИЯ"], "FR"), (["KAZAKHSTAN", "КАЗАХСТАН"], "KZ"),
+              (["TAIWAN", "ТАЙВАНЬ"], "TW"), (["HONG KONG", "ГОНКОНГ"], "HK"),
+              (["SINGAPORE", "СИНГАПУР"], "SG"), (["JAPAN", "ЯПОНИЯ"], "JP"),
+              (["KOREA", "КОРЕЯ"], "KR"), (["CANADA", "КАНАДА"], "CA"),
+              (["ALBANIA", "АЛБАНИЯ"], "AL"), (["NORWAY", "НОРВЕГИЯ"], "NO"),
+              (["BRAZIL", "БРАЗИЛИЯ"], "BR"), (["THAILAND", "ТАИЛАНД"], "TH"),
+              (["AUSTRIA", "АВСТРИЯ"], "AT"), (["EMIRATES", "ОАЭ"], "AE"),
+              (["LITHUANIA", "ЛИТВА"], "LT"), (["MOLDOVA", "МОЛДОВА"], "MD"),
+              (["EUROPE", "ЕВРОПА"], "EU"), (["SWITZERLAND", "ШВЕЙЦАРИЯ"], "CH"),
+              (["LATVIA", "ЛАТВИЯ"], "LV"), (["ITALY", "ИТАЛИЯ"], "IT"),
+              (["SPAIN", "ИСПАНИЯ"], "ES"), (["ROMANIA", "РУМЫНИЯ"], "RO"),
+              (["ESTONIA", "ЭСТОНИЯ"], "EE"), (["CZECH", "ЧЕХИЯ"], "CZ"),
+              (["BULGARIA", "БОЛГАРИЯ"], "BG"), (["GEORGIA", "ГРУЗИЯ"], "GE"),
+              (["UKRAINE", "УКРАИНА"], "UA")
+          ]
+
+          def clean_remark(remark):
+              if not remark: return ""
+              text = remark.strip()
+              try:
+                  text = urllib.parse.unquote(text)
+                  text = urllib.parse.unquote(text)
+              except Exception: pass
+              return text.strip()
+
+          def detect_country(remark):
+              text = clean_remark(remark)
+              upper_text = text.upper()
+              
+              flag_match = re.search(r'[\U0001F1E6-\U0001F1FF]{2}', text)
+              if flag_match:
+                  flag = flag_match.group(0)
+                  c1 = chr(ord(flag[0]) - 0x1F1E6 + ord('A'))
+                  c2 = chr(ord(flag[1]) - 0x1F1E6 + ord('A'))
+                  code = f"{c1}{c2}"
+                  if code in COUNTRY_DICTIONARY: return COUNTRY_DICTIONARY[code]
+                  return f"{flag} {code}", code
+
+              for code, (rus_name, c_code) in COUNTRY_DICTIONARY.items():
+                  if re.search(r'\b' + re.escape(code) + r'\b', upper_text):
+                      return rus_name, c_code
+
+              for keywords, code in TEXT_KEYWORDS:
+                  for kw in keywords:
+                      if kw in upper_text: return COUNTRY_DICTIONARY[code]
+
+              return "\U0001f310 Другие", "OTHER"
+
+          def fetch_and_decode(url):
+              try:
+                  resp = requests.get(url, timeout=15)
+                  resp.raise_for_status()
+                  content = resp.text.strip()
+                  missing_padding = len(content) % 4
+                  if missing_padding: content += '=' * (4 - missing_padding)
+                  decoded_bytes = base64.b64decode(content)
+                  return decoded_bytes.decode('utf-8', errors='ignore').splitlines()
+              except Exception as e:
+                  print(f"Error fetching/decoding {url}: {e}")
+                  return []
+
+          def parse_vless(uri, remark):
+              try:
+                  parsed = urllib.parse.urlparse(uri)
+                  query = urllib.parse.parse_qs(parsed.query)
+                  user_id = parsed.username
+                  address = parsed.hostname
+                  port = parsed.port or 443
+                  if not user_id or not address: return None
+                  
+                  network = query.get("type", ["tcp"])[0]
+                  raw_sec = query.get("security", ["none"])[0]
+                  security = raw_sec if raw_sec in ["tls", "reality"] else "none"
+                  
+                  outbound = {
+                      "protocol": "vless",
+                      "settings": {"vnext": [{"address": address, "port": int(port), 
+                          "users": [{"id": user_id, "encryption": query.get("encryption", ["none"])[0], 
+                                    "flow": query.get("flow", [""])[0]}]}]},
+                      "streamSettings": {"network": network, "security": security}
+                  }
+                  if network == "grpc":
+                      outbound["streamSettings"]["grpcSettings"] = {"serviceName": query.get("serviceName", query.get("path", [""]))[0]}
+                  elif network == "ws":
+                      outbound["streamSettings"]["wsSettings"] = {"path": query.get("path", ["/"])[0], "headers": {"Host": query.get("host", [""])[0]}}
+
+                  if security == "reality":
+                      pbk = query.get("pbk", [""])[0]
+                      if not pbk: return None
+                      outbound["streamSettings"]["realitySettings"] = {
+                          "serverName": query.get("sni", [""])[0], "publicKey": pbk,
+                          "fingerprint": query.get("fp", ["chrome"])[0], "shortId": query.get("sid", [""])[0]
+                      }
+                  elif security == "tls":
+                      outbound["streamSettings"]["tlsSettings"] = {
+                          "serverName": query.get("sni", [""])[0], "fingerprint": query.get("fp", ["chrome"])[0]
+                      }
+                  return outbound, address, port, "vless", user_id
+              except Exception: return None
+
+          def parse_vmess(uri, remark):
+              try:
+                  b64_str = uri[8:].split("#")[0]
+                  b64_str += "=" * (-len(b64_str) % 4)
+                  data = json.loads(base64.b64decode(b64_str).decode('utf-8', errors='ignore'))
+                  address = data.get("add"); port = int(data.get("port", 443)); user_id = data.get("id")
+                  if not address or not user_id: return None
+                  
+                  net = data.get("net", "tcp"); stream_security = "tls" if data.get("tls") == "tls" else "none"
+                  outbound = {
+                      "protocol": "vmess",
+                      "settings": {"vnext": [{"address": address, "port": port, 
+                          "users": [{"id": user_id, "alterId": int(data.get("aid", 0)), "security": "auto"}]}]},
+                      "streamSettings": {"network": net, "security": stream_security}
+                  }
+                  if net == "ws":
+                      outbound["streamSettings"]["wsSettings"] = {"path": data.get("path", "/"), "headers": {"Host": data.get("host", "")}}
+                  elif net == "grpc":
+                      outbound["streamSettings"]["grpcSettings"] = {"serviceName": data.get("path", "")}
+                  if stream_security == "tls":
+                      outbound["streamSettings"]["tlsSettings"] = {"serverName": data.get("host", address)}
+                  return outbound, address, port, "vmess", user_id
+              except Exception: return None
+
+          def parse_trojan(uri, remark):
+              try:
+                  parsed = urllib.parse.urlparse(uri)
+                  password = parsed.username; address = parsed.hostname; port = parsed.port or 443
+                  if not password or not address: return None
+                  query = urllib.parse.parse_qs(parsed.query)
+                  raw_sec = query.get("security", ["tls"])[0]
+                  security = "tls" if raw_sec == "tls" else "none"
+                  
+                  outbound = {
+                      "protocol": "trojan",
+                      "settings": {"servers": [{"address": address, "port": int(port), "password": password}]},
+                      "streamSettings": {"network": query.get("type", ["tcp"])[0], "security": security}
+                  }
+                  if security == "tls":
+                      outbound["streamSettings"]["tlsSettings"] = {"serverName": query.get("sni", [address])[0]}
+                  return outbound, address, port, "trojan", password
+              except Exception: return None
+
+          def parse_node(line):
+              line = line.strip()
+              if not line: return None
+              raw_remark = line.split("#")[1] if "#" in line else ""
+              remark = clean_remark(raw_remark)
+              
+              if line.startswith("vless://"): return parse_vless(line, remark), remark
+              elif line.startswith("vmess://"): return parse_vmess(line, remark), remark
+              elif line.startswith("trojan://"): return parse_trojan(line, remark), remark
+              return None
+
+          def process_source_nodes(url):
+              raw_lines = fetch_and_decode(url)
+              candidate_lines = raw_lines[1:] if len(raw_lines) > 1 else raw_lines
+              parsed_nodes = []; seen_keys = set()
+
+              for line in candidate_lines:
+                  res = parse_node(line)
+                  if not res or not res[0]: continue
+                  outbound_data, remark = res
+                  outbound, address, port, proto, auth_key = outbound_data
+                  
+                  dedup_key = f"{proto}://{auth_key}@{address}:{port}"
+                  if dedup_key in seen_keys: continue
+                  seen_keys.add(dedup_key)
+
+                  country_name, country_code = detect_country(remark)
+                  parsed_nodes.append({"outbound": outbound, "address": address, "port": port, 
+                                     "country_name": country_name, "country_code": country_code})
+              return parsed_nodes
+
+          def build_standalone_json(title, nodes_list):
+              outbounds = []
+              real_tags = []
+
+              for idx, item in enumerate(nodes_list, start=1):
+                  ob = copy.deepcopy(item["outbound"])
+                  tag = f"proxy-{idx}"
+                  ob["tag"] = tag
+                  outbounds.append(ob)
+                  real_tags.append(tag)
+
+              balancer_tag = "balancer-" + title.replace(" ", "-").lower().replace("-", "--")
+              
+              return {
+                  "dns": {"servers": ["https://1.1.1.1/dns-query", "https://1.0.0.1/dns-query"], "queryStrategy": "UseIPv4"},
+                  "routing": {
+                      "rules": [
+                          {"port": "53", "type": "field", "network": "tcp,udp", "outboundTag": "dns-out"},
+                          {"type": "field", "ip": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8"], "outboundTag": "direct"},
+                          {"type": "field", "domain": ["regexp:.*\\.ru$", "domain:ya.ru", "domain:vk.com"], "outboundTag": "direct"},
+                          {"type": "field", "network": "tcp,udp", "balancerTag": balancer_tag}
+                      ],
+                      "balancers": [{
+                          "tag": balancer_tag, "selector": ["proxy-"], 
+                          "strategy": {"type": "leastPing"}, "fallbackTag": real_tags[0] if real_tags else "direct"
+                      }],
+                      "domainMatcher": "hybrid", "domainStrategy": "AsIs"
+                  },
+                  "inbounds": [
+                      {"tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": {"udp": True}},
+                      {"tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http"}
+                  ],
+                  "outbounds": outbounds + [
+                      {"tag": "direct", "protocol": "freedom", "settings": {}},
+                      {"tag": "block", "protocol": "blackhole", "settings": {"response": {"type": "none"}}},
+                      {"tag": "dns-out", "protocol": "dns", "settings": {"blockTypes": [65, 28], "nonIPQuery": "reject"}}
+                  ],
+                  "burstObservatory": {
+                      "pingConfig": {
+                          "timeout": "3s", "interval": "30s", "sampling": 2,
+                          "destination": "http://www.gstatic.com/generate_204", "connectivity": ""
+                      },
+                      "subjectSelector": ["proxy-"]
+                  },
+                  "remarks": title
+              }
+
+          all_server_configs = []
+          nodes_wf = process_source_nodes(URL_WF)
+          nodes_lte = process_source_nodes(URL_LTE)
+
+          # 1. АВТО ВЫБОР (WF)
+          if nodes_wf:
+              auto_wf = build_standalone_json("\U0001f1ea\U0001f1fa Авто выбор", nodes_wf)
+              all_server_configs.append(auto_wf)
+
+          # 2. АВТО - ОБХОД ГЛУШИЛОК (LTE)
+          if nodes_lte:
+              auto_lte = build_standalone_json("\U0001f1ea\U0001f1fa Авто - Обход глушилок", nodes_lte)
+              all_server_configs.append(auto_lte)
+
+          # 3. СТРАНЫ (ТОЛЬКО WF)
+          if nodes_wf:
+              by_country = {}
+              for node in nodes_wf:
+                  code = node["country_code"]
+                  if code not in by_country:
+                      by_country[code] = {"name": node["country_name"], "nodes": []}
+                  by_country[code]["nodes"].append(node)
+
+              sorted_codes = sorted(by_country.keys(), key=lambda c: POPULAR_ORDER.index(c) if c in POPULAR_ORDER else 999)
+
+              for code in sorted_codes:
+                  group = by_country[code]
+                  c_config = build_standalone_json(group["name"], group["nodes"])
+                  all_server_configs.append(c_config)
+
+          if not all_server_configs:
+              raise ValueError("Не найдено ни одного сервера!")
+
+          with open("sub.json", "w", encoding="utf-8") as f:
+              json.dump(all_server_configs, f, ensure_ascii=False, indent=2)
+
+          encoded_lines = [base64.b64encode(json.dumps(cfg, ensure_ascii=False).encode('utf-8')).decode('utf-8') for cfg in all_server_configs]
+          with open("sub.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(encoded_lines))
+
+          print(f"Готово! Сгенерировано {len(all_server_configs)} конфигов.")
+          PYTHON_SCRIPT
 
       - name: Commit and Push Changes
         run: |
@@ -343,6 +354,6 @@ jobs:
           git config --global user.email "github-actions[bot]"
           git add sub.json sub.txt
           if ! git diff --quiet || ! git diff --staged --quiet; then
-            git commit -m "chore: hourly config update $(date '+%Y-%m-%d %H:%M')"
+            git commit -m "chore: update config $(date '+%Y-%m-%d %H:%M')"
             git push
           fi
