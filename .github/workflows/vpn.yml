@@ -460,7 +460,13 @@ jobs:
           print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов.")
           EOF
 
-      - name: Commit and Push Changes
-        run: |
+          - name: Commit and Push Changes
+          run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[b
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add sub.json sub.txt
+          if ! git diff --quiet || ! git diff --staged --quiet; then
+            git commit -m "Generate sub from WF and LTE"
+            git push
+          fi
+          
