@@ -23,20 +23,23 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Process Subscription & Generate Subscriptions
+      - name: Process Subscriptions & Generate Output
         run: |
           python3 - << 'EOF'
           import base64
           import copy
           import json
+          import math
           import re
           import socket
           import urllib.parse
           import requests
           from concurrent.futures import ThreadPoolExecutor
 
-          SUB_URL = "https://subrostunnel.vercel.app/wf.txt"
-          TOTAL_MAX_SERVERS = 300
+          URL_WF = "https://subrostunnel.vercel.app/wf.txt"
+          URL_LTE = "https://subrostunnel.vercel.app/lte.txt"
+
+          TOTAL_MAX_SERVERS = 500
 
           POPULAR_ORDER = [
               "DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ", 
@@ -130,11 +133,21 @@ jobs:
               except Exception:
                   return False
 
+          def clean_remark(remark):
+              if not remark:
+                  return ""
+              text = remark.strip()
+              try:
+                  text = urllib.parse.unquote(text)
+                  text = urllib.parse.unquote(text)
+              except Exception:
+                  pass
+              return text.strip()
+
           def detect_country(remark):
-              text = urllib.parse.unquote(urllib.parse.unquote(remark)).strip()
+              text = clean_remark(remark)
               upper_text = text.upper()
               
-              # 1. Проверка по эмодзи-флагу
               flag_match = re.search(r'[\U0001F1E6-\U0001F1FF]{2}', text)
               if flag_match:
                   flag = flag_match.group(0)
@@ -145,12 +158,10 @@ jobs:
                       return COUNTRY_DICTIONARY[code]
                   return f"{flag} {code}", code
 
-              # 2. Поиск совпадений по ISO-кодам как отдельным словам (например, "AL", "NO", "BR")
               for code, (rus_name, c_code) in COUNTRY_DICTIONARY.items():
                   if re.search(r'\b' + re.escape(code) + r'\b', upper_text):
                       return rus_name, c_code
 
-              # 3. Поиск по названиям стран (например, "GERMANY", "НОРВЕГИЯ")
               for keywords, code in TEXT_KEYWORDS:
                   for kw in keywords:
                       if kw in upper_text:
@@ -169,7 +180,7 @@ jobs:
                   decoded_bytes = base64.b64decode(content)
                   return decoded_bytes.decode('utf-8', errors='ignore').splitlines()
               except Exception as e:
-                  print(f"Error fetching/decoding: {e}")
+                  print(f"Error fetching/decoding {url}: {e}")
                   return []
 
           def parse_vless(uri, remark):
@@ -280,56 +291,56 @@ jobs:
           def parse_node(line):
               line = line.strip()
               if not line: return None
-              remark = line.split("#")[1] if "#" in line else ""
+              raw_remark = line.split("#")[1] if "#" in line else ""
+              remark = clean_remark(raw_remark)
               
               if line.startswith("vless://"): return parse_vless(line, remark), remark
               elif line.startswith("vmess://"): return parse_vmess(line, remark), remark
               elif line.startswith("trojan://"): return parse_trojan(line, remark), remark
               return None
 
-          raw_lines = fetch_and_decode(SUB_URL)
-          candidate_lines = raw_lines[1:] if len(raw_lines) > 1 else raw_lines
+          def process_source_nodes(url):
+              raw_lines = fetch_and_decode(url)
+              candidate_lines = raw_lines[1:] if len(raw_lines) > 1 else raw_lines
 
-          parsed_nodes = []
-          seen_keys = set()
+              parsed_nodes = []
+              seen_keys = set()
 
-          for line in candidate_lines:
-              res = parse_node(line)
-              if not res or not res[0]: continue
-              
-              outbound_data, remark = res
-              outbound, address, port, proto, auth_key = outbound_data
-              
-              dedup_key = f"{proto}://{auth_key}@{address}:{port}"
-              if dedup_key in seen_keys:
-                  continue
-              seen_keys.add(dedup_key)
+              for line in candidate_lines:
+                  res = parse_node(line)
+                  if not res or not res[0]: continue
+                  
+                  outbound_data, remark = res
+                  outbound, address, port, proto, auth_key = outbound_data
+                  
+                  dedup_key = f"{proto}://{auth_key}@{address}:{port}"
+                  if dedup_key in seen_keys:
+                      continue
+                  seen_keys.add(dedup_key)
 
-              country_name, country_code = detect_country(remark)
-              parsed_nodes.append({
-                  "outbound": outbound,
-                  "address": address,
-                  "port": port,
-                  "country_name": country_name,
-                  "country_code": country_code
-              })
+                  country_name, country_code = detect_country(remark)
+                  parsed_nodes.append({
+                      "outbound": outbound,
+                      "address": address,
+                      "port": port,
+                      "country_name": country_name,
+                      "country_code": country_code
+                  })
 
-          def check_node(node):
-              if check_tcp_alive(node["address"], node["port"]):
-                  return node
-              return None
+              def check_node(node):
+                  if check_tcp_alive(node["address"], node["port"]):
+                      return node
+                  return None
 
-          live_nodes = []
-          with ThreadPoolExecutor(max_workers=30) as executor:
-              results = executor.map(check_node, parsed_nodes)
-              for r in results:
-                  if r:
-                      live_nodes.append(r)
-                      if len(live_nodes) >= TOTAL_MAX_SERVERS:
-                          break
-
-          if not live_nodes:
-              raise ValueError("Не найдено ни одного рабочего сервера!")
+              live_nodes = []
+              with ThreadPoolExecutor(max_workers=30) as executor:
+                  results = executor.map(check_node, parsed_nodes)
+                  for r in results:
+                      if r:
+                          live_nodes.append(r)
+                          if len(live_nodes) >= TOTAL_MAX_SERVERS:
+                              break
+              return live_nodes
 
           def build_standalone_json(title, nodes_list):
               outbounds = []
@@ -388,33 +399,55 @@ jobs:
 
           all_server_configs = []
 
-          # 1. Отдельный сервер: 🔁 Авто - самый быстрый
-          auto_config = build_standalone_json("🔁 Авто - самый быстрый", live_nodes)
-          all_server_configs.append(auto_config)
+          # -------------------------------------------------------------
+          # 1. ОБРАБОТКА ПОКЛЮЧЕНИЙ ИЗ WF.TXT (Основной источник)
+          # -------------------------------------------------------------
+          nodes_wf = process_source_nodes(URL_WF)
+          if nodes_wf:
+              # 1.1 Сервер "Авто"
+              auto_config = build_standalone_json("🔁 Авто - самый быстрый", nodes_wf)
+              all_server_configs.append(auto_config)
 
-          # Группировка по странам
-          by_country = {}
-          for node in live_nodes:
-              code = node["country_code"]
-              if code not in by_country:
-                  by_country[code] = {
-                      "name": node["country_name"],
-                      "nodes": []
-                  }
-              by_country[code]["nodes"].append(node)
+              # 1.2 Серверы по странам
+              by_country = {}
+              for node in nodes_wf:
+                  code = node["country_code"]
+                  if code not in by_country:
+                      by_country[code] = {
+                          "name": node["country_name"],
+                          "nodes": []
+                      }
+                  by_country[code]["nodes"].append(node)
 
-          sorted_codes = sorted(
-              by_country.keys(),
-              key=lambda c: POPULAR_ORDER.index(c) if c in POPULAR_ORDER else 999
-          )
+              sorted_codes = sorted(
+                  by_country.keys(),
+                  key=lambda c: POPULAR_ORDER.index(c) if c in POPULAR_ORDER else 999
+              )
 
-          # 2. Отдельные серверы под каждую страну
-          for code in sorted_codes:
-              group = by_country[code]
-              c_config = build_standalone_json(group["name"], group["nodes"])
-              all_server_configs.append(c_config)
+              for code in sorted_codes:
+                  group = by_country[code]
+                  c_config = build_standalone_json(group["name"], group["nodes"])
+                  all_server_configs.append(c_config)
 
-          # 3. Отдельный сервер-заглушка в конце
+          # -------------------------------------------------------------
+          # 2. ОБРАБОТКА ПОДКЛЮЧЕНИЙ ИЗ LTE.TXT (Белые списки #1..#5)
+          # -------------------------------------------------------------
+          nodes_lte = process_source_nodes(URL_LTE)
+          if nodes_lte:
+              chunk_size = math.ceil(len(nodes_lte) / 5)
+              for i in range(5):
+                  chunk_nodes = nodes_lte[i * chunk_size : (i + 1) * chunk_size]
+                  if chunk_nodes:
+                      white_title = f"🇫🇲 Белый список #{i + 1}"
+                      white_config = build_standalone_json(white_title, chunk_nodes)
+                      all_server_configs.append(white_config)
+
+          if not all_server_configs:
+              raise ValueError("Не найдено ни одного живого сервера ни в одном из источников!")
+
+          # -------------------------------------------------------------
+          # 3. ЗАГЛУШКА В КОНЦЕ СПИСКА
+          # -------------------------------------------------------------
           dummy_config = {
               "dns": {"servers": ["1.1.1.1"]},
               "inbounds": [{"tag": "socks", "port": 10808, "protocol": "socks"}],
@@ -425,20 +458,4 @@ jobs:
 
           # Сохранение подписки в формате JSON-массива (sub.json)
           with open("sub.json", "w", encoding="utf-8") as f:
-              json.dump(all_server_configs, f, ensure_ascii=False, indent=2)
-
-          # Сохранение подписки в формате Base64 строки (sub.txt)
-          encoded_lines = [base64.b64encode(json.dumps(cfg, ensure_ascii=False).encode('utf-8')).decode('utf-8') for cfg in all_server_configs]
-          with open("sub.txt", "w", encoding="utf-8") as f:
-              f.write("\n".join(encoded_lines))
-
-          print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов из {len(live_nodes)} живых узлов.")
-          EOF
-
-      - name: Commit and Push Changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add sub.json sub.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Generate separate JSON servers for sub [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
-          
+              json.dump(all_server_c
