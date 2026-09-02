@@ -29,7 +29,6 @@ jobs:
             import base64
             import copy
             import json
-            import math
             import re
             import socket
             import urllib.parse
@@ -38,8 +37,6 @@ jobs:
 
             URL_WF = "https://subrostunnel.vercel.app/wf.txt"
             URL_LTE = "https://subrostunnel.vercel.app/lte.txt"
-
-            TOTAL_MAX_SERVERS = 500
 
             POPULAR_ORDER = [
                 "DE", "NL", "US", "FI", "PL", "GB", "TR", "SE", "FR", "KZ", 
@@ -333,13 +330,11 @@ jobs:
                     return None
 
                 live_nodes = []
-                with ThreadPoolExecutor(max_workers=30) as executor:
+                with ThreadPoolExecutor(max_workers=50) as executor:
                     results = executor.map(check_node, parsed_nodes)
                     for r in results:
                         if r:
                             live_nodes.append(r)
-                            if len(live_nodes) >= TOTAL_MAX_SERVERS:
-                                break
                 return live_nodes
 
             def build_standalone_json(title, nodes_list):
@@ -399,7 +394,7 @@ jobs:
 
             all_server_configs = []
 
-            # 1. Источник WF (Авто + По странам)
+            # 1. ОБРАБОТКА WF.TXT (БЕЗ ЛИМИТОВ)
             nodes_wf = process_source_nodes(URL_WF)
             if nodes_wf:
                 auto_config = build_standalone_json("🔁 Авто - самый быстрый", nodes_wf)
@@ -425,13 +420,15 @@ jobs:
                     c_config = build_standalone_json(group["name"], group["nodes"])
                     all_server_configs.append(c_config)
 
-            # 2. Источник LTE (Белые списки #1..#5)
+            # 2. ОБРАБОТКА LTE.TXT (ДЕЛЕНИЕ СЕРВЕРОВ ИМЕННО ПОРОВНУ)
             nodes_lte = process_source_nodes(URL_LTE)
             if nodes_lte:
-                chunk_size = math.ceil(len(nodes_lte) / 5)
-                for i in range(5):
-                    chunk_nodes = nodes_lte[i * chunk_size : (i + 1) * chunk_size]
-                    if chunk_nodes:
+                total_lte = len(nodes_lte)
+                per_list = total_lte // 5  # Целочисленное деление (например, 17.5 -> 17)
+                
+                if per_list > 0:
+                    for i in range(5):
+                        chunk_nodes = nodes_lte[i * per_list : (i + 1) * per_list]
                         white_title = f"🇫🇲 Белый список #{i + 1}"
                         white_config = build_standalone_json(white_title, chunk_nodes)
                         all_server_configs.append(white_config)
@@ -439,7 +436,7 @@ jobs:
             if not all_server_configs:
                 raise ValueError("Не найдено ни одного живого сервера!")
 
-            # 3. Заглушка в конце
+            # 3. ЗАГЛУШКА
             dummy_config = {
                 "dns": {"servers": ["1.1.1.1"]},
                 "inbounds": [{"tag": "socks", "port": 10808, "protocol": "socks"}],
@@ -452,7 +449,7 @@ jobs:
             with open("sub.json", "w", encoding="utf-8") as f:
                 json.dump(all_server_configs, f, ensure_ascii=False, indent=2)
 
-            # Сохранение в sub.txt (Base64)
+            # Сохранение в sub.txt
             encoded_lines = [base64.b64encode(json.dumps(cfg, ensure_ascii=False).encode('utf-8')).decode('utf-8') for cfg in all_server_configs]
             with open("sub.txt", "w", encoding="utf-8") as f:
                 f.write("\n".join(encoded_lines))
