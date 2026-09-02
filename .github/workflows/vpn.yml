@@ -33,10 +33,7 @@ jobs:
             import urllib.parse
             import requests
 
-            URL_WF_SOURCES = [
-                "https://subrostunnel.vercel.app/wf.txt",
-                "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_VLESS_RUS.txt"
-            ]
+            URL_WF = "https://subrostunnel.vercel.app/wf.txt"
             URL_LTE = "https://subrostunnel.vercel.app/lte.txt"
 
             POPULAR_ORDER = [
@@ -165,10 +162,6 @@ jobs:
                     resp = requests.get(url, timeout=15)
                     resp.raise_for_status()
                     content = resp.text.strip()
-                    
-                    if "vless://" in content or "vmess://" in content or "trojan://" in content:
-                        return content.splitlines()
-                        
                     missing_padding = len(content) % 4
                     if missing_padding:
                         content += '=' * (4 - missing_padding)
@@ -294,46 +287,55 @@ jobs:
                 elif line.startswith("trojan://"): return parse_trojan(line, remark), remark
                 return None
 
-            def process_source_nodes(urls):
-                if isinstance(urls, str):
-                    urls = [urls]
+            def process_source_nodes(url):
+                raw_lines = fetch_and_decode(url)
+                candidate_lines = raw_lines[1:] if len(raw_lines) > 1 else raw_lines
 
                 parsed_nodes = []
                 seen_keys = set()
 
-                for url in urls:
-                    raw_lines = fetch_and_decode(url)
-                    candidate_lines = raw_lines[1:] if len(raw_lines) > 1 and "vless://" not in raw_lines[0] else raw_lines
+                for line in candidate_lines:
+                    res = parse_node(line)
+                    if not res or not res[0]: continue
+                    
+                    outbound_data, remark = res
+                    outbound, address, port, proto, auth_key = outbound_data
+                    
+                    dedup_key = f"{proto}://{auth_key}@{address}:{port}"
+                    if dedup_key in seen_keys:
+                        continue
+                    seen_keys.add(dedup_key)
 
-                    for line in candidate_lines:
-                        res = parse_node(line)
-                        if not res or not res[0]: continue
-                        
-                        outbound_data, remark = res
-                        outbound, address, port, proto, auth_key = outbound_data
-                        
-                        dedup_key = f"{proto}://{auth_key}@{address}:{port}"
-                        if dedup_key in seen_keys:
-                            continue
-                        seen_keys.add(dedup_key)
-
-                        country_name, country_code = detect_country(remark)
-                        parsed_nodes.append({
-                            "outbound": outbound,
-                            "address": address,
-                            "port": port,
-                            "country_name": country_name,
-                            "country_code": country_code
-                        })
+                    country_name, country_code = detect_country(remark)
+                    parsed_nodes.append({
+                        "outbound": outbound,
+                        "address": address,
+                        "port": port,
+                        "country_name": country_name,
+                        "country_code": country_code
+                    })
 
                 return parsed_nodes
 
             def build_standalone_json(title, nodes_list):
-                nodes_list = nodes_list[:300]
+                # Заглушка VLESS TCP первой в массиве outbounds (клиент покажет её протокол VLESS)
+                dummy_vless = {
+                    "tag": "proxy-dummy",
+                    "protocol": "vless",
+                    "settings": {
+                        "vnext": [{
+                            "address": "127.0.0.1",
+                            "port": 0,
+                            "users": [{"id": "00000000-0000-0000-0000-000000000000", "encryption": "none"}]
+                        }]
+                    },
+                    "streamSettings": {"network": "tcp", "security": "none"}
+                }
 
-                outbounds = []
+                outbounds = [dummy_vless]
                 real_tags = []
 
+                # Добавляем реальные рабочие прокси
                 for idx, item in enumerate(nodes_list, start=1):
                     ob = copy.deepcopy(item["outbound"])
                     tag = f"proxy-{idx}"
@@ -388,20 +390,20 @@ jobs:
 
             all_server_configs = []
 
-            nodes_wf = process_source_nodes(URL_WF_SOURCES)
+            nodes_wf = process_source_nodes(URL_WF)
             nodes_lte = process_source_nodes(URL_LTE)
 
-            # 1. 🇪🇺 Авто выбор (из объединенных WF источников)
+            # 1. СВЕРХУ: Первый авто-выбор из WF
             if nodes_wf:
                 auto_wf = build_standalone_json("🇪🇺 Авто выбор", nodes_wf)
                 all_server_configs.append(auto_wf)
 
-            # 2. 🇪🇺 Авто - Обход глушилок (со всеми серверами из LTE)
+            # 2. СРАЗУ ПОД НИМ: Второй авто-выбор из LTE (Обход)
             if nodes_lte:
-                auto_lte = build_standalone_json("🇪🇺 Авто - Обход глушилок", nodes_lte)
+                auto_lte = build_standalone_json("🇪🇺 Авто выбор - обход", nodes_lte)
                 all_server_configs.append(auto_lte)
 
-            # 3. Страны из WF
+            # 3. СТРАНЫ ИЗ WF
             if nodes_wf:
                 by_country = {}
                 for node in nodes_wf:
@@ -423,10 +425,22 @@ jobs:
                     c_config = build_standalone_json(group["name"], group["nodes"])
                     all_server_configs.append(c_config)
 
+            # 4. БЕЛЫЕ СПИСКИ ИЗ LTE (поровну на 5 частей)
+            if nodes_lte:
+                total_lte = len(nodes_lte)
+                per_list = total_lte // 5
+                
+                if per_list > 0:
+                    for i in range(5):
+                        chunk_nodes = nodes_lte[i * per_list : (i + 1) * per_list]
+                        white_title = f"🇫🇲 Белый список #{i + 1}"
+                        white_config = build_standalone_json(white_title, chunk_nodes)
+                        all_server_configs.append(white_config)
+
             if not all_server_configs:
                 raise ValueError("Не найдено ни одного сервера!")
 
-            # 4. Заглушка команды в самом конце
+            # 5. ЗАГЛУШКА В КОНЦЕ
             dummy_config = {
                 "dns": {"servers": ["1.1.1.1"]},
                 "inbounds": [{"tag": "socks", "port": 10808, "protocol": "socks"}],
@@ -454,6 +468,6 @@ jobs:
           git config --global user.email "github-actions[bot]"
           git add sub.json sub.txt
           if ! git diff --quiet || ! git diff --staged --quiet; then
-            git commit -m "Merged WF sources with igareck repo, capped proxies at 300"
+            git commit -m "Add VLESS dummy header and reorder auto configs"
             git push
           fi
