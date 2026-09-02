@@ -23,13 +23,23 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Generate config.json with Ping & Correct Observatory
+      - name: Install Xray Core
+        run: |
+          mkdir -p xray_bin
+          curl -L -o xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          unzip -q xray.zip -d xray_bin
+          chmod +x xray_bin/xray
+          echo "$GITHUB_WORKSPACE/xray_bin" >> $GITHUB_PATH
+
+      - name: Generate and Validate Config
         env:
           PYTHON_SCRIPT: |
             import base64
             import copy
             import json
+            import os
             import socket
+            import subprocess
             import time
             import urllib.parse
             import requests
@@ -48,7 +58,7 @@ jobs:
                     decoded = base64.b64decode(content).decode('utf-8', errors='ignore')
                     return [line.strip() for line in decoded.splitlines() if line.strip()]
                 except Exception as e:
-                    print(f"Ошибка загрузки Base64 с {url}: {e}")
+                    print(f"Ошибка загрузки с {url}: {e}")
                     return []
 
             def parse_vless(uri):
@@ -85,9 +95,13 @@ jobs:
                         outbound["streamSettings"]["wsSettings"] = {"path": query.get("path", ["/"])[0], "headers": {"Host": query.get("host", [""])[0]}}
 
                     if security == "reality":
+                        pbk = query.get("pbk", [""])[0]
+                        # СТРОГАЯ ПРОВЕРКА: Если у REALITY нет pbk, узлы вызывают ошибку empty password!
+                        if not pbk:
+                            return None
                         outbound["streamSettings"]["realitySettings"] = {
                             "serverName": query.get("sni", [""])[0],
-                            "publicKey": query.get("pbk", [""])[0],
+                            "publicKey": pbk,
                             "fingerprint": query.get("fp", ["chrome"])[0],
                             "shortId": query.get("sid", [""])[0]
                         }
@@ -155,34 +169,11 @@ jobs:
                 except Exception:
                     return None
 
-            def parse_ss(uri):
-                try:
-                    parsed = urllib.parse.urlparse(uri)
-                    address = parsed.hostname
-                    port = parsed.port or 8388
-                    if not address: return None
-                    userinfo = parsed.username
-                    if userinfo and not parsed.password:
-                        userinfo += "=" * (-len(userinfo) % 4)
-                        decoded = base64.b64decode(userinfo).decode('utf-8', errors='ignore')
-                        method, password = decoded.split(":", 1)
-                    else:
-                        method = parsed.username
-                        password = parsed.password
-
-                    return {
-                        "protocol": "shadowsocks",
-                        "settings": {"servers": [{"address": address, "port": int(port), "method": method, "password": password}]}
-                    }
-                except Exception:
-                    return None
-
             def parse_line(line):
                 line = line.strip()
                 if line.startswith("vless://"): return parse_vless(line)
                 elif line.startswith("vmess://"): return parse_vmess(line)
                 elif line.startswith("trojan://"): return parse_trojan(line)
-                elif line.startswith("ss://"): return parse_ss(line)
                 return None
 
             def extract_nodes(url):
@@ -194,7 +185,7 @@ jobs:
                         nodes.append(node)
                 return nodes
 
-            def test_nodes_ping(nodes_list, max_limit=200):
+            def filter_working_nodes(nodes_list, max_limit=200):
                 working_nodes = []
                 for node in nodes_list:
                     if len(working_nodes) >= max_limit:
@@ -211,21 +202,16 @@ jobs:
                         host = server_info["address"]
                         port = int(server_info["port"])
 
-                        start_time = time.time()
                         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        sock.settimeout(1.5)
+                        sock.settimeout(1.2)
                         result = sock.connect_ex((host, port))
                         sock.close()
 
                         if result == 0:
-                            latency = int((time.time() - start_time) * 1000)
-                            node_copy = copy.deepcopy(node)
-                            node_copy["ping"] = latency
-                            working_nodes.append(node_copy)
+                            working_nodes.append(node)
                     except Exception:
                         continue
 
-                working_nodes.sort(key=lambda x: x.get("ping", 9999))
                 return working_nodes[:max_limit]
 
             def build_single_json(title, nodes_list):
@@ -234,8 +220,6 @@ jobs:
 
                 for idx, ob in enumerate(nodes_list, start=1):
                     node_ob = copy.deepcopy(ob)
-                    if "ping" in node_ob:
-                        del node_ob["ping"]
                     tag = f"proxy-{idx}"
                     node_ob["tag"] = tag
                     outbounds.append(node_ob)
@@ -244,17 +228,20 @@ jobs:
                 if not real_tags:
                     real_tags = ["direct"]
 
-                # КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: ПРАВИЛЬНАЯ СТРУКТУРА БАЛАНСИРОВЩИКА И ОБСЕРВАТОРИИ
+                # Конфигурация burstObservatory + leastPing балансировщика
                 return {
                     "dns": {
                         "servers": ["https://1.1.1.1/dns-query", "https://1.0.0.1/dns-query"],
                         "queryStrategy": "UseIPv4"
                     },
-                    "observatory": {
+                    "burstObservatory": {
                         "subjectSelector": ["proxy-"],
-                        "probeURL": "http://www.gstatic.com/generate_204",
-                        "probeInterval": "30s",
-                        "enableLegacyBest": False
+                        "pingConfig": {
+                            "destination": "http://www.gstatic.com/generate_204",
+                            "interval": "30s",
+                            "timeout": "3s",
+                            "sampling": 2
+                        }
                     },
                     "routing": {
                         "domainStrategy": "AsIs",
@@ -289,20 +276,15 @@ jobs:
 
             # 1. Авто выбор (из wf.txt)
             raw_wf_nodes = extract_nodes(URL_WF)
-            valid_wf_nodes = test_nodes_ping(raw_wf_nodes, max_limit=200)
+            valid_wf_nodes = filter_working_nodes(raw_wf_nodes, max_limit=200)
             if valid_wf_nodes:
-                cfg_wf = build_single_json("🇪🇺 Авто выбор", valid_wf_nodes)
-                all_server_configs.append(cfg_wf)
+                all_server_configs.append(build_single_json("🇪🇺 Авто выбор", valid_wf_nodes))
 
             # 2. Авто - Обход глушилок (из lte.txt)
             raw_lte_nodes = extract_nodes(URL_LTE)
-            valid_lte_nodes = test_nodes_ping(raw_lte_nodes, max_limit=200)
+            valid_lte_nodes = filter_working_nodes(raw_lte_nodes, max_limit=200)
             if valid_lte_nodes:
-                cfg_lte = build_single_json("🇪🇺 Авто - Обход глушилок", valid_lte_nodes)
-                all_server_configs.append(cfg_lte)
-
-            if not all_server_configs:
-                raise ValueError("Нет доступных рабочих серверов!")
+                all_server_configs.append(build_single_json("🇪🇺 Авто - Обход глушилок", valid_lte_nodes))
 
             # Заглушка
             dummy_config = {
@@ -313,11 +295,28 @@ jobs:
             }
             all_server_configs.append(dummy_config)
 
-            # СОХРАНЕНИЕ ПРЯМО В config.json
-            with open("config.json", "w", encoding="utf-8") as f:
-                json.dump(all_server_configs, f, ensure_ascii=False, indent=2)
+            # ВАЛИДАЦИЯ КАЖДОГО JSON ДВИЖКОМ XRAY
+            verified_configs = []
+            for cfg in all_server_configs:
+                with open("temp_check.json", "w", encoding="utf-8") as tmp:
+                    json.dump(cfg, tmp, ensure_ascii=False)
+                
+                # Запускаем проверку синтаксиса Xray
+                res = subprocess.run(["xray", "run", "-test", "-c", "temp_check.json"], capture_output=True, text=True)
+                if res.returncode == 0:
+                    verified_configs.append(cfg)
+                else:
+                    print(f"Конфиг '{cfg.get('remarks')}' не прошёл валидацию Xray:")
+                    print(res.stderr)
 
-            print("Файл config.json успешно сгенерирован и содержит рабочую обсерваторию leastPing!")
+            if os.path.exists("temp_check.json"):
+                os.remove("temp_check.json")
+
+            # Запись в config.json
+            with open("config.json", "w", encoding="utf-8") as f:
+                json.dump(verified_configs, f, ensure_ascii=False, indent=2)
+
+            print(f"Готово! В config.json записано {len(verified_configs)} проверенных профилей.")
         run: |
           python3 -c "$PYTHON_SCRIPT"
 
@@ -327,6 +326,6 @@ jobs:
           git config --global user.email "github-actions[bot]"
           git add config.json
           if ! git diff --quiet || ! git diff --staged --quiet; then
-            git commit -m "Update config.json with working observatory leastPing"
+            git commit -m "Fix Reality validation and add Xray core verification"
             git push
           fi
