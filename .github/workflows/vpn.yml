@@ -30,10 +30,8 @@ jobs:
             import copy
             import json
             import re
-            import socket
             import urllib.parse
             import requests
-            from concurrent.futures import ThreadPoolExecutor
 
             URL_WF = "https://subrostunnel.vercel.app/wf.txt"
             URL_LTE = "https://subrostunnel.vercel.app/lte.txt"
@@ -122,13 +120,6 @@ jobs:
                 (["GEORGIA", "ГРУЗИЯ"], "GE"),
                 (["UKRAINE", "УКРАИНА"], "UA")
             ]
-
-            def check_tcp_alive(host, port, timeout=1.5):
-                try:
-                    with socket.create_connection((host, int(port)), timeout=timeout):
-                        return True
-                except Exception:
-                    return False
 
             def clean_remark(remark):
                 if not remark:
@@ -324,18 +315,8 @@ jobs:
                         "country_code": country_code
                     })
 
-                def check_node(node):
-                    if check_tcp_alive(node["address"], node["port"]):
-                        return node
-                    return None
-
-                live_nodes = []
-                with ThreadPoolExecutor(max_workers=50) as executor:
-                    results = executor.map(check_node, parsed_nodes)
-                    for r in results:
-                        if r:
-                            live_nodes.append(r)
-                return live_nodes
+                # Без проверки пинга (забираем все распарсенные узлы)
+                return parsed_nodes
 
             def build_standalone_json(title, nodes_list):
                 outbounds = []
@@ -394,10 +375,10 @@ jobs:
 
             all_server_configs = []
 
-            # 1. ОБРАБОТКА WF.TXT (БЕЗ ЛИМИТОВ)
+            # 1. ОБРАБОТКА WF.TXT (Все серверы)
             nodes_wf = process_source_nodes(URL_WF)
             if nodes_wf:
-                auto_config = build_standalone_json("🔁 Авто - самый быстрый", nodes_wf)
+                auto_config = build_standalone_json("Авто выбор", nodes_wf)
                 all_server_configs.append(auto_config)
 
                 by_country = {}
@@ -420,11 +401,16 @@ jobs:
                     c_config = build_standalone_json(group["name"], group["nodes"])
                     all_server_configs.append(c_config)
 
-            # 2. ОБРАБОТКА LTE.TXT (ДЕЛЕНИЕ СЕРВЕРОВ ИМЕННО ПОРОВНУ)
+            # 2. ОБРАБОТКА LTE.TXT (Все серверы без проверок)
             nodes_lte = process_source_nodes(URL_LTE)
             if nodes_lte:
+                # Берет абсолютно все узлы из lte.txt
+                auto_white_config = build_standalone_json("Авто выбор - обход", nodes_lte)
+                all_server_configs.append(auto_white_config)
+
+                # Деление ровно на 5 частей
                 total_lte = len(nodes_lte)
-                per_list = total_lte // 5  # Целочисленное деление (например, 17.5 -> 17)
+                per_list = total_lte // 5
                 
                 if per_list > 0:
                     for i in range(5):
@@ -434,7 +420,7 @@ jobs:
                         all_server_configs.append(white_config)
 
             if not all_server_configs:
-                raise ValueError("Не найдено ни одного живого сервера!")
+                raise ValueError("Не найдено ни одного сервера!")
 
             # 3. ЗАГЛУШКА
             dummy_config = {
@@ -461,9 +447,9 @@ jobs:
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.email "github-actions[bot]"
           git add sub.json sub.txt
           if ! git diff --quiet || ! git diff --staged --quiet; then
-            git commit -m "Generate sub from WF and LTE"
+            git commit -m "Generate sub from WF and LTE (No ping checks)"
             git push
           fi
