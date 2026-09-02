@@ -315,18 +315,33 @@ jobs:
                         "country_code": country_code
                     })
 
-                # Без проверки пинга (забираем все распарсенные узлы)
                 return parsed_nodes
 
             def build_standalone_json(title, nodes_list):
-                outbounds = []
-                tags = []
+                # Заглушка VLESS TCP первой в массиве outbounds (клиент покажет её протокол VLESS)
+                dummy_vless = {
+                    "tag": "proxy-dummy",
+                    "protocol": "vless",
+                    "settings": {
+                        "vnext": [{
+                            "address": "127.0.0.1",
+                            "port": 0,
+                            "users": [{"id": "00000000-0000-0000-0000-000000000000", "encryption": "none"}]
+                        }]
+                    },
+                    "streamSettings": {"network": "tcp", "security": "none"}
+                }
+
+                outbounds = [dummy_vless]
+                real_tags = []
+
+                # Добавляем реальные рабочие прокси
                 for idx, item in enumerate(nodes_list, start=1):
                     ob = copy.deepcopy(item["outbound"])
                     tag = f"proxy-{idx}"
                     ob["tag"] = tag
                     outbounds.append(ob)
-                    tags.append(tag)
+                    real_tags.append(tag)
 
                 return {
                     "dns": {
@@ -345,7 +360,7 @@ jobs:
                                 "tag": "balancer",
                                 "selector": ["proxy-"],
                                 "strategy": {"type": "leastPing"},
-                                "fallbackTag": tags[0]
+                                "fallbackTag": real_tags[0]
                             }
                         ],
                         "domainMatcher": "hybrid",
@@ -375,12 +390,21 @@ jobs:
 
             all_server_configs = []
 
-            # 1. ОБРАБОТКА WF.TXT (Все серверы)
             nodes_wf = process_source_nodes(URL_WF)
-            if nodes_wf:
-                auto_config = build_standalone_json("Авто выбор", nodes_wf)
-                all_server_configs.append(auto_config)
+            nodes_lte = process_source_nodes(URL_LTE)
 
+            # 1. СВЕРХУ: Первый авто-выбор из WF
+            if nodes_wf:
+                auto_wf = build_standalone_json("🇪🇺 Авто выбор", nodes_wf)
+                all_server_configs.append(auto_wf)
+
+            # 2. СРАЗУ ПОД НИМ: Второй авто-выбор из LTE (Обход)
+            if nodes_lte:
+                auto_lte = build_standalone_json("🇪🇺 Авто выбор - обход", nodes_lte)
+                all_server_configs.append(auto_lte)
+
+            # 3. СТРАНЫ ИЗ WF
+            if nodes_wf:
                 by_country = {}
                 for node in nodes_wf:
                     code = node["country_code"]
@@ -401,14 +425,8 @@ jobs:
                     c_config = build_standalone_json(group["name"], group["nodes"])
                     all_server_configs.append(c_config)
 
-            # 2. ОБРАБОТКА LTE.TXT (Все серверы без проверок)
-            nodes_lte = process_source_nodes(URL_LTE)
+            # 4. БЕЛЫЕ СПИСКИ ИЗ LTE (поровну на 5 частей)
             if nodes_lte:
-                # Берет абсолютно все узлы из lte.txt
-                auto_white_config = build_standalone_json("Авто выбор - обход", nodes_lte)
-                all_server_configs.append(auto_white_config)
-
-                # Деление ровно на 5 частей
                 total_lte = len(nodes_lte)
                 per_list = total_lte // 5
                 
@@ -422,7 +440,7 @@ jobs:
             if not all_server_configs:
                 raise ValueError("Не найдено ни одного сервера!")
 
-            # 3. ЗАГЛУШКА
+            # 5. ЗАГЛУШКА В КОНЦЕ
             dummy_config = {
                 "dns": {"servers": ["1.1.1.1"]},
                 "inbounds": [{"tag": "socks", "port": 10808, "protocol": "socks"}],
@@ -450,6 +468,6 @@ jobs:
           git config --global user.email "github-actions[bot]"
           git add sub.json sub.txt
           if ! git diff --quiet || ! git diff --staged --quiet; then
-            git commit -m "Generate sub from WF and LTE (No ping checks)"
+            git commit -m "Add VLESS dummy header and reorder auto configs"
             git push
           fi
