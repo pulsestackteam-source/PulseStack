@@ -399,16 +399,12 @@ jobs:
 
           all_server_configs = []
 
-          # -------------------------------------------------------------
-          # 1. ОБРАБОТКА ПОКЛЮЧЕНИЙ ИЗ WF.TXT (Основной источник)
-          # -------------------------------------------------------------
+          # 1. Источник WF (Авто + По странам)
           nodes_wf = process_source_nodes(URL_WF)
           if nodes_wf:
-              # 1.1 Сервер "Авто"
               auto_config = build_standalone_json("🔁 Авто - самый быстрый", nodes_wf)
               all_server_configs.append(auto_config)
 
-              # 1.2 Серверы по странам
               by_country = {}
               for node in nodes_wf:
                   code = node["country_code"]
@@ -429,9 +425,7 @@ jobs:
                   c_config = build_standalone_json(group["name"], group["nodes"])
                   all_server_configs.append(c_config)
 
-          # -------------------------------------------------------------
-          # 2. ОБРАБОТКА ПОДКЛЮЧЕНИЙ ИЗ LTE.TXT (Белые списки #1..#5)
-          # -------------------------------------------------------------
+          # 2. Источник LTE (Белые списки #1..#5)
           nodes_lte = process_source_nodes(URL_LTE)
           if nodes_lte:
               chunk_size = math.ceil(len(nodes_lte) / 5)
@@ -443,11 +437,9 @@ jobs:
                       all_server_configs.append(white_config)
 
           if not all_server_configs:
-              raise ValueError("Не найдено ни одного живого сервера ни в одном из источников!")
+              raise ValueError("Не найдено ни одного живого сервера!")
 
-          # -------------------------------------------------------------
-          # 3. ЗАГЛУШКА В КОНЦЕ СПИСКА
-          # -------------------------------------------------------------
+          # 3. Заглушка в конце
           dummy_config = {
               "dns": {"servers": ["1.1.1.1"]},
               "inbounds": [{"tag": "socks", "port": 10808, "protocol": "socks"}],
@@ -456,6 +448,19 @@ jobs:
           }
           all_server_configs.append(dummy_config)
 
-          # Сохранение подписки в формате JSON-массива (sub.json)
+          # Сохранение в sub.json
           with open("sub.json", "w", encoding="utf-8") as f:
-              json.dump(all_server_c
+              json.dump(all_server_configs, f, ensure_ascii=False, indent=2)
+
+          # Сохранение в sub.txt (Base64)
+          encoded_lines = [base64.b64encode(json.dumps(cfg, ensure_ascii=False).encode('utf-8')).decode('utf-8') for cfg in all_server_configs]
+          with open("sub.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(encoded_lines))
+
+          print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов.")
+          EOF
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[b
