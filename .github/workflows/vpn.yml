@@ -33,7 +33,10 @@ jobs:
             import urllib.parse
             import requests
 
-            URL_WF = "https://subrostunnel.vercel.app/wf.txt"
+            URL_WF_SOURCES = [
+                "https://subrostunnel.vercel.app/wf.txt",
+                "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_VLESS_RUS.txt"
+            ]
             URL_LTE = "https://subrostunnel.vercel.app/lte.txt"
 
             POPULAR_ORDER = [
@@ -162,6 +165,10 @@ jobs:
                     resp = requests.get(url, timeout=15)
                     resp.raise_for_status()
                     content = resp.text.strip()
+                    
+                    if "vless://" in content or "vmess://" in content or "trojan://" in content:
+                        return content.splitlines()
+                        
                     missing_padding = len(content) % 4
                     if missing_padding:
                         content += '=' * (4 - missing_padding)
@@ -287,37 +294,43 @@ jobs:
                 elif line.startswith("trojan://"): return parse_trojan(line, remark), remark
                 return None
 
-            def process_source_nodes(url):
-                raw_lines = fetch_and_decode(url)
-                candidate_lines = raw_lines[1:] if len(raw_lines) > 1 else raw_lines
+            def process_source_nodes(urls):
+                if isinstance(urls, str):
+                    urls = [urls]
 
                 parsed_nodes = []
                 seen_keys = set()
 
-                for line in candidate_lines:
-                    res = parse_node(line)
-                    if not res or not res[0]: continue
-                    
-                    outbound_data, remark = res
-                    outbound, address, port, proto, auth_key = outbound_data
-                    
-                    dedup_key = f"{proto}://{auth_key}@{address}:{port}"
-                    if dedup_key in seen_keys:
-                        continue
-                    seen_keys.add(dedup_key)
+                for url in urls:
+                    raw_lines = fetch_and_decode(url)
+                    candidate_lines = raw_lines[1:] if len(raw_lines) > 1 and "vless://" not in raw_lines[0] else raw_lines
 
-                    country_name, country_code = detect_country(remark)
-                    parsed_nodes.append({
-                        "outbound": outbound,
-                        "address": address,
-                        "port": port,
-                        "country_name": country_name,
-                        "country_code": country_code
-                    })
+                    for line in candidate_lines:
+                        res = parse_node(line)
+                        if not res or not res[0]: continue
+                        
+                        outbound_data, remark = res
+                        outbound, address, port, proto, auth_key = outbound_data
+                        
+                        dedup_key = f"{proto}://{auth_key}@{address}:{port}"
+                        if dedup_key in seen_keys:
+                            continue
+                        seen_keys.add(dedup_key)
+
+                        country_name, country_code = detect_country(remark)
+                        parsed_nodes.append({
+                            "outbound": outbound,
+                            "address": address,
+                            "port": port,
+                            "country_name": country_name,
+                            "country_code": country_code
+                        })
 
                 return parsed_nodes
 
             def build_standalone_json(title, nodes_list):
+                nodes_list = nodes_list[:300]
+
                 outbounds = []
                 real_tags = []
 
@@ -375,10 +388,10 @@ jobs:
 
             all_server_configs = []
 
-            nodes_wf = process_source_nodes(URL_WF)
+            nodes_wf = process_source_nodes(URL_WF_SOURCES)
             nodes_lte = process_source_nodes(URL_LTE)
 
-            # 1. 🇪🇺 Авто выбор (из WF)
+            # 1. 🇪🇺 Авто выбор (из объединенных WF источников)
             if nodes_wf:
                 auto_wf = build_standalone_json("🇪🇺 Авто выбор", nodes_wf)
                 all_server_configs.append(auto_wf)
@@ -426,7 +439,10 @@ jobs:
             with open("sub.json", "w", encoding="utf-8") as f:
                 json.dump(all_server_configs, f, ensure_ascii=False, indent=2)
 
-            
+            # Сохранение в sub.txt
+            encoded_lines = [base64.b64encode(json.dumps(cfg, ensure_ascii=False).encode('utf-8')).decode('utf-8') for cfg in all_server_configs]
+            with open("sub.txt", "w", encoding="utf-8") as f:
+                f.write("\n".join(encoded_lines))
 
             print(f"Готово! Сгенерировано {len(all_server_configs)} независимых JSON-серверов.")
         run: |
@@ -438,6 +454,6 @@ jobs:
           git config --global user.email "github-actions[bot]"
           git add sub.json sub.txt
           if ! git diff --quiet || ! git diff --staged --quiet; then
-            git commit -m "Remove proxy-dummy outbound"
+            git commit -m "Merged WF sources with igareck repo, capped proxies at 300"
             git push
           fi
