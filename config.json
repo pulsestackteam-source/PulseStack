@@ -201,6 +201,35 @@
         "settings": {
           "vnext": [
             {
+              "address": "172.235.62.90",
+              "port": 443,
+              "users": [
+                {
+                  "id": "b98d4c6e-6770-4a31-8256-a4750cdea0e7",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "www.amazon.com",
+            "publicKey": "0i_xAxYgSNx5NMpK2lOaWGS-CvAiD_LneYPO0MF0owo",
+            "fingerprint": "firefox",
+            "shortId": "1a"
+          }
+        },
+        "tag": "proxy-5"
+      },
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
               "address": "31.77.220.183",
               "port": 2443,
               "users": [
@@ -223,7 +252,7 @@
             "shortId": "a1b2c3d4"
           }
         },
-        "tag": "proxy-5"
+        "tag": "proxy-6"
       },
       {
         "protocol": "vless",
@@ -252,7 +281,7 @@
             "shortId": ""
           }
         },
-        "tag": "proxy-6"
+        "tag": "proxy-7"
       },
       {
         "protocol": "vless",
@@ -281,7 +310,7 @@
             "shortId": "a1b2c3d4"
           }
         },
-        "tag": "proxy-7"
+        "tag": "proxy-8"
       },
       {
         "protocol": "vless",
@@ -309,29 +338,6 @@
             "fingerprint": "qq",
             "shortId": "a1b2c3d4"
           }
-        },
-        "tag": "proxy-8"
-      },
-      {
-        "protocol": "vless",
-        "settings": {
-          "vnext": [
-            {
-              "address": "31.76.71.140",
-              "port": 443,
-              "users": [
-                {
-                  "id": "af00e0c4-decf-48f2-9013-56abe9c9efcd",
-                  "encryption": "none",
-                  "flow": ""
-                }
-              ]
-            }
-          ]
-        },
-        "streamSettings": {
-          "network": "tcp",
-          "security": "none"
         },
         "tag": "proxy-9"
       },
