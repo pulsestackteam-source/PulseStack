@@ -517,26 +517,29 @@
         "settings": {
           "vnext": [
             {
-              "address": "144.31.77.71",
-              "port": 443,
+              "address": "159.195.244.171",
+              "port": 2054,
               "users": [
                 {
-                  "id": "384e448a-880b-46ab-860d-91ece3f0f803",
+                  "id": "75079a7f-75b5-418b-8a65-f7b2f438cd4a",
                   "encryption": "none",
-                  "flow": "xtls-rprx-vision"
+                  "flow": ""
                 }
               ]
             }
           ]
         },
         "streamSettings": {
-          "network": "tcp",
+          "network": "grpc",
           "security": "reality",
+          "grpcSettings": {
+            "serviceName": "grpc-tunnel"
+          },
           "realitySettings": {
-            "serverName": "de.yservice.help",
-            "publicKey": "-qLezG1nUEtvOJi-Ra7WRYv-aHkv3PSefEuXpWV2G04",
+            "serverName": "www.ibm.com",
+            "publicKey": "0-HIOsSIQTrTYc5PdFT0OSKGBiBUiGrJzgV6ctal8Fg",
             "fingerprint": "firefox",
-            "shortId": "abcd1234"
+            "shortId": ""
           }
         },
         "tag": "proxy-16"
