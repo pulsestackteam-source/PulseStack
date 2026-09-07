@@ -731,29 +731,24 @@
         "settings": {
           "vnext": [
             {
-              "address": "31.76.0.105",
-              "port": 2054,
+              "address": "144.31.5.64",
+              "port": 443,
               "users": [
                 {
-                  "id": "75079a7f-75b5-418b-8a65-f7b2f438cd4a",
+                  "id": "cd3bb7d9-7df3-4644-ac05-c260990ac277",
                   "encryption": "none",
-                  "flow": ""
+                  "flow": "xtls-rprx-vision"
                 }
               ]
             }
           ]
         },
         "streamSettings": {
-          "network": "grpc",
-          "security": "reality",
-          "grpcSettings": {
-            "serviceName": "grpc-tunnel"
-          },
-          "realitySettings": {
-            "serverName": "www.ibm.com",
-            "publicKey": "zZ3j8Cw2soL_X2yrp5hOiN-Y5l0RdkY523LYkKYfQhM",
-            "fingerprint": "firefox",
-            "shortId": ""
+          "network": "tcp",
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "pl6.moritech.net",
+            "fingerprint": "firefox"
           }
         },
         "tag": "proxy-23"
@@ -780,7 +775,7 @@
           "security": "tls",
           "tlsSettings": {
             "serverName": "pl6.moritech.net",
-            "fingerprint": "firefox"
+            "fingerprint": "ios"
           }
         },
         "tag": "proxy-24"
@@ -790,11 +785,11 @@
         "settings": {
           "vnext": [
             {
-              "address": "144.31.5.64",
+              "address": "144.31.77.71",
               "port": 443,
               "users": [
                 {
-                  "id": "cd3bb7d9-7df3-4644-ac05-c260990ac277",
+                  "id": "384e448a-880b-46ab-860d-91ece3f0f803",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -804,10 +799,12 @@
         },
         "streamSettings": {
           "network": "tcp",
-          "security": "tls",
-          "tlsSettings": {
-            "serverName": "pl6.moritech.net",
-            "fingerprint": "ios"
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "de.yservice.help",
+            "publicKey": "-qLezG1nUEtvOJi-Ra7WRYv-aHkv3PSefEuXpWV2G04",
+            "fingerprint": "firefox",
+            "shortId": "abcd1234"
           }
         },
         "tag": "proxy-25"
@@ -3233,6 +3230,35 @@
         "settings": {
           "vnext": [
             {
+              "address": "al.sixseven.network",
+              "port": 25026,
+              "users": [
+                {
+                  "id": "62a05f8e-eedf-4500-8c79-c9315f565bcc",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "proxy11.h1guro.ovh",
+            "publicKey": "3qBfeZG4LvSGPNSacB-tCpO91TtLVLftWwNeNg5jplU",
+            "fingerprint": "chrome",
+            "shortId": "bc1c3578b48ae7cc"
+          }
+        },
+        "tag": "proxy-111"
+      },
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
               "address": "trpsg20.horlutr.ir",
               "port": 11437,
               "users": [
@@ -3255,7 +3281,7 @@
             "shortId": "7de83d0e31eb75ef"
           }
         },
-        "tag": "proxy-111"
+        "tag": "proxy-112"
       },
       {
         "protocol": "vless",
@@ -3284,7 +3310,7 @@
             "shortId": "7de83d0e31eb75ef"
           }
         },
-        "tag": "proxy-112"
+        "tag": "proxy-113"
       },
       {
         "protocol": "vless",
@@ -3317,7 +3343,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-113"
+        "tag": "proxy-114"
       },
       {
         "protocol": "vless",
@@ -3340,7 +3366,7 @@
           "network": "tcp",
           "security": "none"
         },
-        "tag": "proxy-114"
+        "tag": "proxy-115"
       },
       {
         "protocol": "vless",
@@ -3363,7 +3389,7 @@
           "network": "tcp",
           "security": "none"
         },
-        "tag": "proxy-115"
+        "tag": "proxy-116"
       },
       {
         "protocol": "vless",
@@ -3386,7 +3412,7 @@
           "network": "tcp",
           "security": "none"
         },
-        "tag": "proxy-116"
+        "tag": "proxy-117"
       },
       {
         "tag": "direct",
