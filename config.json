@@ -3817,6 +3817,39 @@
         "settings": {
           "vnext": [
             {
+              "address": "wstg.datasynctrue.online",
+              "port": 443,
+              "users": [
+                {
+                  "id": "ff0b6ba8-bed0-4c4d-bbc9-23af47582615",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "ws",
+          "security": "tls",
+          "wsSettings": {
+            "path": "/api/connect",
+            "headers": {
+              "Host": "wstg.datasynctrue.online"
+            }
+          },
+          "tlsSettings": {
+            "serverName": "wstg.datasynctrue.online",
+            "fingerprint": "chrome"
+          }
+        },
+        "tag": "proxy-101"
+      },
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
               "address": "18.239.134.69",
               "port": 80,
               "users": [
@@ -3839,7 +3872,7 @@
             }
           }
         },
-        "tag": "proxy-101"
+        "tag": "proxy-102"
       },
       {
         "protocol": "vless",
@@ -3866,7 +3899,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-102"
+        "tag": "proxy-103"
       },
       {
         "protocol": "vless",
@@ -3899,7 +3932,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-103"
+        "tag": "proxy-104"
       },
       {
         "protocol": "vless",
@@ -3932,7 +3965,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-104"
+        "tag": "proxy-105"
       },
       {
         "protocol": "vless",
@@ -3961,7 +3994,7 @@
             "shortId": "0dbcbce110aa"
           }
         },
-        "tag": "proxy-105"
+        "tag": "proxy-106"
       },
       {
         "protocol": "vless",
@@ -3990,7 +4023,7 @@
             }
           }
         },
-        "tag": "proxy-106"
+        "tag": "proxy-107"
       },
       {
         "protocol": "trojan",
@@ -4010,7 +4043,7 @@
             "serverName": "letiranbreath-7rrkevfu2hjbis5uhcxwztz24t5vp6trf1oka8dkrw0n.he3fmq6z0mfszsk3xy2e.workers.dev"
           }
         },
-        "tag": "proxy-107"
+        "tag": "proxy-108"
       },
       {
         "protocol": "trojan",
@@ -4030,7 +4063,7 @@
             "serverName": "letiranbreath-7rrkevfu2hjbis5uhcxwztz24t5vp6trf1oka8dkrw0n.he3fmq6z0mfszsk3xy2e.workers.dev"
           }
         },
-        "tag": "proxy-108"
+        "tag": "proxy-109"
       },
       {
         "protocol": "vless",
@@ -4059,7 +4092,7 @@
             }
           }
         },
-        "tag": "proxy-109"
+        "tag": "proxy-110"
       },
       {
         "protocol": "vless",
@@ -4088,7 +4121,7 @@
             }
           }
         },
-        "tag": "proxy-110"
+        "tag": "proxy-111"
       },
       {
         "protocol": "vless",
@@ -4117,7 +4150,7 @@
             }
           }
         },
-        "tag": "proxy-111"
+        "tag": "proxy-112"
       },
       {
         "protocol": "vless",
@@ -4146,7 +4179,7 @@
             }
           }
         },
-        "tag": "proxy-112"
+        "tag": "proxy-113"
       },
       {
         "protocol": "vless",
@@ -4175,7 +4208,7 @@
             }
           }
         },
-        "tag": "proxy-113"
+        "tag": "proxy-114"
       },
       {
         "protocol": "vless",
@@ -4208,7 +4241,7 @@
             "fingerprint": "randomized"
           }
         },
-        "tag": "proxy-114"
+        "tag": "proxy-115"
       },
       {
         "protocol": "vless",
@@ -4241,7 +4274,7 @@
             "fingerprint": "randomized"
           }
         },
-        "tag": "proxy-115"
+        "tag": "proxy-116"
       },
       {
         "protocol": "vless",
@@ -4274,7 +4307,7 @@
             "fingerprint": "randomized"
           }
         },
-        "tag": "proxy-116"
+        "tag": "proxy-117"
       },
       {
         "protocol": "vless",
@@ -4307,7 +4340,7 @@
             "fingerprint": "randomized"
           }
         },
-        "tag": "proxy-117"
+        "tag": "proxy-118"
       },
       {
         "protocol": "vless",
@@ -4340,7 +4373,7 @@
             "fingerprint": "randomized"
           }
         },
-        "tag": "proxy-118"
+        "tag": "proxy-119"
       },
       {
         "protocol": "vless",
@@ -4373,7 +4406,7 @@
             "fingerprint": "randomized"
           }
         },
-        "tag": "proxy-119"
+        "tag": "proxy-120"
       },
       {
         "protocol": "vless",
@@ -4406,7 +4439,7 @@
             "fingerprint": "randomized"
           }
         },
-        "tag": "proxy-120"
+        "tag": "proxy-121"
       },
       {
         "protocol": "vless",
@@ -4439,7 +4472,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-121"
+        "tag": "proxy-122"
       },
       {
         "protocol": "vless",
@@ -4472,7 +4505,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-122"
+        "tag": "proxy-123"
       },
       {
         "protocol": "vless",
@@ -4505,7 +4538,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-123"
+        "tag": "proxy-124"
       },
       {
         "protocol": "vless",
@@ -4538,7 +4571,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-124"
+        "tag": "proxy-125"
       },
       {
         "protocol": "vless",
@@ -4565,7 +4598,7 @@
             "fingerprint": "edge"
           }
         },
-        "tag": "proxy-125"
+        "tag": "proxy-126"
       },
       {
         "protocol": "vless",
@@ -4592,7 +4625,7 @@
             "fingerprint": "edge"
           }
         },
-        "tag": "proxy-126"
+        "tag": "proxy-127"
       },
       {
         "protocol": "vless",
@@ -4619,7 +4652,7 @@
             "fingerprint": "edge"
           }
         },
-        "tag": "proxy-127"
+        "tag": "proxy-128"
       },
       {
         "protocol": "vless",
@@ -4646,7 +4679,7 @@
             "fingerprint": "edge"
           }
         },
-        "tag": "proxy-128"
+        "tag": "proxy-129"
       },
       {
         "protocol": "vless",
@@ -4673,7 +4706,7 @@
             "fingerprint": "edge"
           }
         },
-        "tag": "proxy-129"
+        "tag": "proxy-130"
       },
       {
         "protocol": "vless",
@@ -4700,7 +4733,7 @@
             "fingerprint": "edge"
           }
         },
-        "tag": "proxy-130"
+        "tag": "proxy-131"
       },
       {
         "protocol": "vless",
@@ -4729,7 +4762,7 @@
             "shortId": "e3daad69"
           }
         },
-        "tag": "proxy-131"
+        "tag": "proxy-132"
       },
       {
         "protocol": "vless",
@@ -4758,7 +4791,7 @@
             "shortId": "b28db60d77c50b4f"
           }
         },
-        "tag": "proxy-132"
+        "tag": "proxy-133"
       },
       {
         "protocol": "vless",
@@ -4790,7 +4823,7 @@
             "shortId": "c226283c4de5b1ad"
           }
         },
-        "tag": "proxy-133"
+        "tag": "proxy-134"
       },
       {
         "protocol": "vless",
@@ -4819,7 +4852,7 @@
             }
           }
         },
-        "tag": "proxy-134"
+        "tag": "proxy-135"
       },
       {
         "protocol": "vless",
@@ -4848,7 +4881,7 @@
             "shortId": ""
           }
         },
-        "tag": "proxy-135"
+        "tag": "proxy-136"
       },
       {
         "protocol": "vless",
@@ -4877,7 +4910,7 @@
             "shortId": "5b"
           }
         },
-        "tag": "proxy-136"
+        "tag": "proxy-137"
       },
       {
         "protocol": "vless",
@@ -4910,7 +4943,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-137"
+        "tag": "proxy-138"
       },
       {
         "protocol": "vless",
@@ -4939,7 +4972,7 @@
             }
           }
         },
-        "tag": "proxy-138"
+        "tag": "proxy-139"
       },
       {
         "protocol": "vless",
@@ -4968,35 +5001,6 @@
             "shortId": "2b368990a94e8cbb"
           }
         },
-        "tag": "proxy-139"
-      },
-      {
-        "protocol": "vless",
-        "settings": {
-          "vnext": [
-            {
-              "address": "207.241.172.254",
-              "port": 12345,
-              "users": [
-                {
-                  "id": "9d1edc82-a983-496a-954a-a52e4fb13f37",
-                  "encryption": "none",
-                  "flow": "xtls-rprx-vision"
-                }
-              ]
-            }
-          ]
-        },
-        "streamSettings": {
-          "network": "tcp",
-          "security": "reality",
-          "realitySettings": {
-            "serverName": "amp-api-edge.apps.apple.com",
-            "publicKey": "1N8CIM6v_TgbIDNneyEPNQ92hyq5Eyh_irJWOXKDBDw",
-            "fingerprint": "chrome",
-            "shortId": "2b368990a94e8cbb"
-          }
-        },
         "tag": "proxy-140"
       },
       {
@@ -5008,7 +5012,7 @@
               "port": 12345,
               "users": [
                 {
-                  "id": "9e320f5b-6574-41bc-bb41-59f21c943b0d",
+                  "id": "9d1edc82-a983-496a-954a-a52e4fb13f37",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -5066,7 +5070,7 @@
               "port": 12345,
               "users": [
                 {
-                  "id": "bfd636ff-59f3-4e98-8a31-a47985e6bc3e",
+                  "id": "9e320f5b-6574-41bc-bb41-59f21c943b0d",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -5095,7 +5099,7 @@
               "port": 12345,
               "users": [
                 {
-                  "id": "c2f33b4c-aae2-4e1d-be70-0eecfd50c55c",
+                  "id": "bfd636ff-59f3-4e98-8a31-a47985e6bc3e",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -5120,11 +5124,11 @@
         "settings": {
           "vnext": [
             {
-              "address": "217.16.31.162",
-              "port": 443,
+              "address": "207.241.172.254",
+              "port": 12345,
               "users": [
                 {
-                  "id": "af9c2bcf-fe68-4379-9c78-6e5f1b4af0e2",
+                  "id": "c2f33b4c-aae2-4e1d-be70-0eecfd50c55c",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -5136,10 +5140,10 @@
           "network": "tcp",
           "security": "reality",
           "realitySettings": {
-            "serverName": "max.ru",
-            "publicKey": "SHIYN7zN9aFVxwKK-bIvDbhUgtHvlBhDi1qSl2sWwRw",
-            "fingerprint": "safari",
-            "shortId": "e7"
+            "serverName": "amp-api-edge.apps.apple.com",
+            "publicKey": "1N8CIM6v_TgbIDNneyEPNQ92hyq5Eyh_irJWOXKDBDw",
+            "fingerprint": "chrome",
+            "shortId": "2b368990a94e8cbb"
           }
         },
         "tag": "proxy-145"
@@ -6280,93 +6284,6 @@
         "settings": {
           "vnext": [
             {
-              "address": "37.9.4.112",
-              "port": 8443,
-              "users": [
-                {
-                  "id": "b2878d5e-61e2-4d93-9db2-e2de6f328c83",
-                  "encryption": "none",
-                  "flow": "xtls-rprx-vision"
-                }
-              ]
-            }
-          ]
-        },
-        "streamSettings": {
-          "network": "tcp",
-          "security": "reality",
-          "realitySettings": {
-            "serverName": "eh.vk.com",
-            "publicKey": "YHIlow4CGpvA97hp_2puxwlqRLphiYRAQamvqBkQm18",
-            "fingerprint": "firefox",
-            "shortId": ""
-          }
-        },
-        "tag": "proxy-185"
-      },
-      {
-        "protocol": "vless",
-        "settings": {
-          "vnext": [
-            {
-              "address": "37.9.4.112",
-              "port": 8443,
-              "users": [
-                {
-                  "id": "b2878d5e-61e2-4d93-9db2-e2de6f328c83",
-                  "encryption": "none",
-                  "flow": "xtls-rprx-vision"
-                }
-              ]
-            }
-          ]
-        },
-        "streamSettings": {
-          "network": "raw",
-          "security": "reality",
-          "realitySettings": {
-            "serverName": "eh.vk.com",
-            "publicKey": "YHIlow4CGpvA97hp_2puxwlqRLphiYRAQamvqBkQm18",
-            "fingerprint": "firefox",
-            "shortId": ""
-          }
-        },
-        "tag": "proxy-186"
-      },
-      {
-        "protocol": "vless",
-        "settings": {
-          "vnext": [
-            {
-              "address": "37.9.4.112",
-              "port": 8443,
-              "users": [
-                {
-                  "id": "b2878d5e-61e2-4d93-9db2-e2de6f328c83",
-                  "encryption": "none",
-                  "flow": "xtls-rprx-vision"
-                }
-              ]
-            }
-          ]
-        },
-        "streamSettings": {
-          "network": "raw",
-          "security": "reality",
-          "realitySettings": {
-            "serverName": "eh.vk.com",
-            "publicKey": "YHIlow4CGpvA97hp_2puxwlqRLphiYRAQamvqBkQm18",
-            "fingerprint": "firefox",
-            "shortId": ""
-          }
-        },
-        "tag": "proxy-187"
-      },
-      {
-        "protocol": "vless",
-        "settings": {
-          "vnext": [
-            {
               "address": "45.12.75.242",
               "port": 26424,
               "users": [
@@ -6389,7 +6306,7 @@
             "shortId": "23103e1e"
           }
         },
-        "tag": "proxy-188"
+        "tag": "proxy-185"
       },
       {
         "protocol": "vless",
@@ -6418,7 +6335,7 @@
             "shortId": "23103e1e"
           }
         },
-        "tag": "proxy-189"
+        "tag": "proxy-186"
       },
       {
         "protocol": "vless",
@@ -6447,7 +6364,7 @@
             "shortId": "23103e1e"
           }
         },
-        "tag": "proxy-190"
+        "tag": "proxy-187"
       },
       {
         "protocol": "vless",
@@ -6476,7 +6393,7 @@
             "shortId": "23103e1e"
           }
         },
-        "tag": "proxy-191"
+        "tag": "proxy-188"
       },
       {
         "protocol": "vless",
@@ -6505,7 +6422,7 @@
             "shortId": ""
           }
         },
-        "tag": "proxy-192"
+        "tag": "proxy-189"
       },
       {
         "protocol": "vless",
@@ -6534,7 +6451,7 @@
             "shortId": "4a753538b6a9eee9"
           }
         },
-        "tag": "proxy-193"
+        "tag": "proxy-190"
       },
       {
         "protocol": "vless",
@@ -6563,7 +6480,7 @@
             }
           }
         },
-        "tag": "proxy-194"
+        "tag": "proxy-191"
       },
       {
         "protocol": "vless",
@@ -6592,7 +6509,7 @@
             }
           }
         },
-        "tag": "proxy-195"
+        "tag": "proxy-192"
       },
       {
         "protocol": "vless",
@@ -6621,7 +6538,7 @@
             }
           }
         },
-        "tag": "proxy-196"
+        "tag": "proxy-193"
       },
       {
         "protocol": "vless",
@@ -6629,6 +6546,93 @@
           "vnext": [
             {
               "address": "78.159.247.123",
+              "port": 7444,
+              "users": [
+                {
+                  "id": "0764541b-3e57-4b47-954b-51e996fae5fc",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "raw",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "akamai.com",
+            "publicKey": "-P8DgKISSG4jnLuj6ihZDqZs1_zt-juBrhVhTylHiAo",
+            "fingerprint": "firefox",
+            "shortId": ""
+          }
+        },
+        "tag": "proxy-194"
+      },
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "78.159.247.123",
+              "port": 7444,
+              "users": [
+                {
+                  "id": "0764541b-3e57-4b47-954b-51e996fae5fc",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "raw",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "akamai.com",
+            "publicKey": "-P8DgKISSG4jnLuj6ihZDqZs1_zt-juBrhVhTylHiAo",
+            "fingerprint": "chrome",
+            "shortId": ""
+          }
+        },
+        "tag": "proxy-195"
+      },
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "78.159.247.123",
+              "port": 7444,
+              "users": [
+                {
+                  "id": "0764541b-3e57-4b47-954b-51e996fae5fc",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "raw",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "akamai.com",
+            "publicKey": "-P8DgKISSG4jnLuj6ihZDqZs1_zt-juBrhVhTylHiAo",
+            "fingerprint": "chrome",
+            "shortId": ""
+          }
+        },
+        "tag": "proxy-196"
+      },
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "78.159.247.166",
               "port": 7444,
               "users": [
                 {
@@ -6657,7 +6661,7 @@
         "settings": {
           "vnext": [
             {
-              "address": "78.159.247.123",
+              "address": "78.159.247.166",
               "port": 7444,
               "users": [
                 {
@@ -6686,7 +6690,7 @@
         "settings": {
           "vnext": [
             {
-              "address": "78.159.247.123",
+              "address": "78.159.247.166",
               "port": 7444,
               "users": [
                 {
@@ -6715,11 +6719,11 @@
         "settings": {
           "vnext": [
             {
-              "address": "78.159.247.166",
-              "port": 7444,
+              "address": "78.159.247.205",
+              "port": 443,
               "users": [
                 {
-                  "id": "0764541b-3e57-4b47-954b-51e996fae5fc",
+                  "id": "92089155-6602-4122-86d4-fe6de20e8c4d",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -6731,10 +6735,10 @@
           "network": "raw",
           "security": "reality",
           "realitySettings": {
-            "serverName": "akamai.com",
-            "publicKey": "-P8DgKISSG4jnLuj6ihZDqZs1_zt-juBrhVhTylHiAo",
+            "serverName": "kinopoisk.ru",
+            "publicKey": "NsTRRl4ofT64w0VwmkpOWE8yfiXLcEqgwgi-9SGnXTA",
             "fingerprint": "firefox",
-            "shortId": ""
+            "shortId": "a1b2c3d4"
           }
         },
         "tag": "proxy-200"
