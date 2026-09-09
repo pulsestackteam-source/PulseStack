@@ -2,8 +2,8 @@ name: Generate 5k Auto-Select Config
 
 on:
   schedule:
-    - cron: '0 */5 * * *' # Каждые 5 часов
-  workflow_dispatch: # Ручной запуск
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -42,83 +42,76 @@ jobs:
                   try:
                       async with session.get(SOURCE_URL, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                           if resp.status == 200:
-                              return await resp.text()
+                              text = await resp.text()
+                              print(f"Fetched {len(text)} characters.")
+                              return text
                   except Exception as e:
-                      print(f"Error fetching source: {e}")
+                      print(f"Fetch Error: {e}")
               return ""
 
           def parse_vless_link(link):
-              """Парсинг стандартной VLESS ссылки"""
               try:
                   if not link.startswith("vless://"):
                       return None
                   
-                  # Убираем префикс и разделяем основную часть и фрагмент (имя)
-                  main_part = link[8:]
-                  if '#' in main_part:
-                      core, fragment = main_part.split('#', 1)
+                  # Удаляем префикс
+                  content = link[8:]
+                  
+                  # Разделяем основную часть и имя (после #)
+                  if '#' in content:
+                      core, fragment = content.split('#', 1)
+                      server_name = unquote(fragment)
                   else:
-                      core = main_part
-                      fragment = ""
+                      core = content
+                      server_name = f"Server-{hash(core) % 1000}"
 
-                  # Декодируем имя сервера из URL-кодирования (для UTF-8 и эмодзи)
-                  server_name = unquote(fragment) if fragment else f"Server-{hash(core) % 1000}"
-
-                  # Разделяем user@host
+                  # Ищем @ для разделения пользователя и хоста
                   if '@' not in core:
                       return None
                   
-                  user_info, host_info = core.split('@', 1)
+                  user_part, host_part = core.split('@', 1)
                   
-                  # Парсим хост и порт
-                  # Формат может быть address:port или [ipv6]:port
-                  if host_info.startswith('['):
-                      bracket_end = host_info.find(']')
-                      address = host_info[1:bracket_end]
-                      port = int(host_info[bracket_end+2:]) # пропускаем ]:
+                  # Парсим UUID
+                  uuid = user_part.split(':')[0]
+                  
+                  # Парсим Хост и Порт (учитываем параметры после ?)
+                  query_params = {}
+                  if '?' in host_part:
+                      host_addr, query_string = host_part.split('?', 1)
+                      query_params = parse_qs(query_string)
                   else:
-                      parts = host_info.rsplit(':', 1)
-                      if len(parts) != 2: return None
-                      address, port = parts[0], int(parts[1])
+                      host_addr = host_part
 
-                  # Парсим параметры пользователя
-                  user_params = user_info.split(':')
-                  uuid = user_params[0]
+                  # Обработка адреса (может быть [ipv6]:port или domain:port)
+                  port = 443 # дефолт
+                  address = host_addr
                   
-                  # Парсим query параметры (flow, sni, pbk и т.д.)
-                  query_string = ""
-                  if '?' in address: # Иногда параметры идут после адреса, но обычно они в конце core части
-                      # В vless ссылках параметры часто идут после uuid через ?
-                      pass 
-                  
-                  # Более точный парсинг query из конца core части, если она сложная
-                  # Обычно формат: uuid@address:port?params#name
-                  # Мы уже разделили по @, значит params могут быть в host_info или отдельно
-                  # В стандарте vless: vless://uuid@host:port?params#name
-                  
-                  # Перепроверим структуру:
-                  # core = uuid@host:port?params
-                  if '?' in core:
-                      host_and_params = core.split('@')[1]
-                      host_part, query_part = host_and_params.split('?', 1)
-                      params = parse_qs(query_part)
-                      
-                      # Извлекаем нужные поля для Reality/TLS
-                      flow = params.get('flow', [''])[0]
-                      sni = params.get('sni', [address])[0] # Если sni нет, берем адрес
-                      pbk = params.get('pbk', [''])[0]
-                      sid = params.get('sid', [''])[0]
-                      fp = params.get('fp', ['chrome'])[0]
-                      net = params.get('type', ['tcp'])[0]
-                      serviceName = params.get('serviceName', [''])[0]
+                  if host_addr.startswith('['):
+                      # IPv6
+                      bracket_end = host_addr.find(']')
+                      if bracket_end != -1:
+                          address = host_addr[1:bracket_end]
+                          remaining = host_addr[bracket_end+1:]
+                          if remaining.startswith(':'):
+                              port = int(remaining[1:])
                   else:
-                      flow = ""
-                      sni = address
-                      pbk = ""
-                      sid = ""
-                      fp = "chrome"
-                      net = "tcp"
-                      serviceName = ""
+                      # Domain or IPv4
+                      if ':' in host_addr:
+                          parts = host_addr.rsplit(':', 1)
+                          address = parts[0]
+                          port = int(parts[1])
+
+                  # Извлекаем параметры для Reality/TLS
+                  flow = query_params.get('flow', [''])[0]
+                  sni = query_params.get('sni', [address])[0]
+                  pbk = query_params.get('pbk', [''])[0]
+                  sid = query_params.get('sid', [''])[0]
+                  fp = query_params.get('fp', ['chrome'])[0]
+                  net_type = query_params.get('type', ['tcp'])[0]
+                  service_name = query_params.get('serviceName', [''])[0]
+                  
+                  # Если path есть, добавляем его (для ws/grpc)
+                  path = query_params.get('path', ['/'])[0]
 
                   return {
                       "address": address,
@@ -129,21 +122,20 @@ jobs:
                       "pbk": pbk,
                       "sid": sid,
                       "fp": fp,
-                      "net": net,
-                      "serviceName": serviceName,
+                      "net": net_type,
+                      "serviceName": service_name,
+                      "path": path,
                       "name": server_name
                   }
               except Exception as e:
-                  # print(f"Parse error: {e}")
+                  print(f"Parse Error on line: {link[:50]}... Error: {e}")
                   return None
 
           def create_outbound(tag, data):
-              """Создание блока outbound"""
-              security = "none"
               stream_set = {"network": data["net"]}
               
-              if data["pbk"]: # Если есть publicKey, значит это Reality или TLS
-                  security = "reality"
+              # Настройка безопасности
+              if data["pbk"]:
                   stream_set["security"] = "reality"
                   stream_set["realitySettings"] = {
                       "serverName": data["sni"],
@@ -152,18 +144,22 @@ jobs:
                       "shortId": data["sid"]
                   }
               elif data["sni"] and data["sni"] != data["address"]:
-                  security = "tls"
                   stream_set["security"] = "tls"
                   stream_set["tlsSettings"] = {
                       "serverName": data["sni"],
                       "fingerprint": data["fp"]
                   }
+              else:
+                  stream_set["security"] = "none"
 
-              # Настройка grpc/http если нужно
+              # Дополнительные настройки транспорта
               if data["net"] == "grpc":
                   stream_set["grpcSettings"] = {"serviceName": data["serviceName"]}
               elif data["net"] == "ws":
-                  stream_set["wsSettings"] = {"path": "/"} # Упрощенно
+                  stream_set["wsSettings"] = {"path": data["path"], "headers": {"Host": data["sni"]}}
+              elif data["net"] == "tcp" and data["path"]:
+                  # Иногда path используют для http upgrade
+                  pass 
 
               return {
                   "protocol": "vless",
@@ -179,30 +175,47 @@ jobs:
               }
 
           async def main():
-              print("Starting generation from 26.txt...")
+              print("Starting generation...")
               raw_data = await fetch_sources()
               
               outbounds = []
               count = 0
+              errors = 0
               
               lines = raw_data.strip().split('\n')
+              print(f"Total lines found: {len(lines)}")
+
               for line in lines:
                   if count >= MAX_SERVERS: break
                   line = line.strip()
-                  if not line or not line.startswith("vless://"): continue
+                  if not line: continue
                   
+                  if not line.startswith("vless://"):
+                      # Пропускаем мусор, но считаем
+                      continue
+
                   data = parse_vless_link(line)
                   if data:
                       tag = f"proxy-{count + 1}"
                       outbounds.append(create_outbound(tag, data))
                       count += 1
+                  else:
+                      errors += 1
 
-              print(f"Successfully parsed {count} servers.")
+              print(f"Success: {count} servers parsed. Errors/Skipped: {errors}")
+
+              if count == 0:
+                  print("CRITICAL: No servers found! Check source format.")
+                  # Создаем фиктивный сервер, чтобы конфиг был валидным
+                  outbounds.append(create_outbound("proxy-dummy", {
+                      "address": "127.0.0.1", "port": 1080, "id": "00000000-0000-0000-0000-000000000000",
+                      "flow": "", "sni": "localhost", "pbk": "", "sid": "", "fp": "chrome", "net": "tcp", "serviceName": "", "path": "/"
+                  }))
 
               final_config = {
                   "log": {"access": "", "error": "", "loglevel": "warning"},
                   "dns": {
-                      "servers": ["https://1.1.1.1/dns-query", "https://1.0.0.1/dns-query"],
+                      "servers": ["https://1.1.1.1/dns-query"],
                       "queryStrategy": "UseIPv4"
                   },
                   "routing": {
@@ -216,19 +229,16 @@ jobs:
                       }],
                       "rules": [
                           {"port": "53", "type": "field", "network": "tcp,udp", "outboundTag": "dns-out"},
-                          {"type": "field", "ip": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8"], "outboundTag": "direct"},
-                          {"type": "field", "domain": ["regexp:.*\\.ru$", "domain:ya.ru", "domain:vk.com"], "outboundTag": "direct"},
+                          {"type": "field", "ip": ["geoip:private"], "outboundTag": "direct"},
                           {"type": "field", "network": "tcp,udp", "balancerTag": "balancer"}
                       ]
                   },
                   "inbounds": [
-                      {"tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": {"udp": True, "auth": "noauth"}},
-                      {"tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": {"auth": "noauth"}}
+                      {"tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": {"udp": True, "auth": "noauth"}}
                   ],
                   "outbounds": outbounds + [
                       {"tag": "direct", "protocol": "freedom", "settings": {}},
-                      {"tag": "block", "protocol": "blackhole", "settings": {"response": {"type": "none"}}},
-                      {"tag": "dns-out", "protocol": "dns", "settings": {"blockTypes": [65, 28], "nonIPQuery": "reject"}}
+                      {"tag": "dns-out", "protocol": "dns", "settings": {}}
                   ],
                   "burstObservatory": {
                       "pingConfig": {
@@ -245,7 +255,7 @@ jobs:
               with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
                   json.dump(final_config, f, indent=2, ensure_ascii=False)
               
-              print("config.json saved.")
+              print("config.json generated and saved.")
 
           asyncio.run(main())
           EOF
