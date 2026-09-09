@@ -1,331 +1,196 @@
-name: Test Auto-Select Config Generator
+name: Generate 5k Auto-Select Config
 
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
-
-permissions:
-  contents: write
+    - cron: '0 */5 * * *' # Запуск каждые 5 часов
+  workflow_dispatch: # Ручной запуск по кнопке
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install aiohttp
 
-      - name: Install Xray Core
+      - name: Generate config.json via Python
         run: |
-          mkdir -p xray_bin
-          curl -L -o xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
-          unzip -q xray.zip -d xray_bin
-          chmod +x xray_bin/xray
-          echo "$GITHUB_WORKSPACE/xray_bin" >> $GITHUB_PATH
+          python3 - << 'EOF'
+          import json
+          import asyncio
+          import aiohttp
+          import base64
+          from urllib.parse import urlparse, parse_qs
 
-      - name: Generate and Validate Config
-        env:
-          PYTHON_SCRIPT: |
-            import base64
-            import copy
-            import json
-            import os
-            import socket
-            import subprocess
-            import time
-            import urllib.parse
-            import requests
+          SOURCE_URL = "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/26.txt"
+          OUTPUT_FILE = "config.json"
+          MAX_SERVERS = 5000
+          
+          # Базовые настройки из твоего примера
+          BASE_UUID = "b5ca5ab3-8cbc-4ac3-89da-9cd360589ecb" 
+          
+          async def fetch_sources():
+              async with aiohttp.ClientSession() as session:
+                  try:
+                      async with session.get(SOURCE_URL, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                          if resp.status == 200:
+                              return await resp.text()
+                  except Exception as e:
+                      print(f"Error fetching source: {e}")
+              return ""
 
-            URL_WF = "https://subrostunnel.vercel.app/wf.txt"
-            URL_LTE = "https://subrostunnel.vercel.app/lte.txt"
+          def parse_vless_line(line):
+              """Парсинг VLESS ссылки для извлечения параметров"""
+              try:
+                  if not line.startswith("vless://"):
+                      return None
+                  
+                  # Убираем vless:// и фрагмент после #
+                  core_part = line[8:].split('#')[0]
+                  # Декодируем Base64
+                  padding = 4 - len(core_part) % 4
+                  if padding != 4:
+                      core_part += "=" * padding
+                  decoded_str = base64.b64decode(core_part).decode('utf-8')
+                  
+                  parts = decoded_str.split('@')
+                  if len(parts) < 2: return None
+                  
+                  user_info = parts[0].split(':')
+                  host_port = parts[1].split(':')
+                  
+                  if len(host_port) < 2: return None
+                  
+                  address = host_port[0]
+                  port = int(host_port[1])
+                  user_id = user_info[0] if user_info else BASE_UUID
+                  
+                  # Извлекаем параметры из query string (если есть в исходнике)
+                  # В простых списках wf.txt часто только адрес:порт, тогда берем дефолтные Reality настройки
+                  return {
+                      "address": address,
+                      "port": port,
+                      "id": user_id
+                  }
+              except:
+                  return None
 
-            def fetch_base64_list(url):
-                try:
-                    resp = requests.get(url, timeout=15)
-                    resp.raise_for_status()
-                    content = resp.text.strip()
-                    missing_padding = len(content) % 4
-                    if missing_padding:
-                        content += '=' * (4 - missing_padding)
-                    decoded = base64.b64decode(content).decode('utf-8', errors='ignore')
-                    return [line.strip() for line in decoded.splitlines() if line.strip()]
-                except Exception as e:
-                    print(f"Ошибка загрузки с {url}: {e}")
-                    return []
+          def create_outbound(tag, data):
+              """Создание блока outbound по твоему шаблону"""
+              return {
+                  "protocol": "vless",
+                  "settings": {
+                      "vnext": [{
+                          "address": data["address"],
+                          "port": data["port"],
+                          "users": [{"id": data["id"], "encryption": "none", "flow": "xtls-rprx-vision"}]
+                      }]
+                  },
+                  "streamSettings": {
+                      "network": "tcp",
+                      "security": "reality",
+                      "realitySettings": {
+                          "serverName": "www.cloudflare.com", # Дефолтный SNI, можно менять
+                          "publicKey": "lymJAptLKD4NpHVg1r4ybQZuGCxilvHP30DDN9Sz82w", # Пример ключа
+                          "fingerprint": "firefox",
+                          "shortId": "522545cf95347d03"
+                      }
+                  },
+                  "tag": tag
+              }
 
-            def parse_vless(uri):
-                try:
-                    parsed = urllib.parse.urlparse(uri)
-                    query = urllib.parse.parse_qs(parsed.query)
-                    user_id = parsed.username
-                    address = parsed.hostname
-                    port = parsed.port or 443
-                    if not user_id or not address: return None
+          async def main():
+              print("Starting 5k server generation...")
+              raw_data = await fetch_sources()
+              
+              outbounds = []
+              proxy_tags = []
+              
+              lines = raw_data.strip().split('\n')
+              count = 0
+              
+              for line in lines:
+                  if count >= MAX_SERVERS: break
+                  line = line.strip()
+                  if not line: continue
+                  
+                  data = parse_vless_line(line)
+                  if data:
+                      tag = f"proxy-{count + 1}"
+                      outbounds.append(create_outbound(tag, data))
+                      proxy_tags.append(tag)
+                      count += 1
 
-                    network = query.get("type", ["tcp"])[0]
-                    security = query.get("security", ["none"])[0]
+              print(f"Parsed {count} servers.")
 
-                    outbound = {
-                        "protocol": "vless",
-                        "settings": {
-                            "vnext": [{
-                                "address": address,
-                                "port": int(port),
-                                "users": [{
-                                    "id": user_id,
-                                    "encryption": query.get("encryption", ["none"])[0],
-                                    "flow": query.get("flow", [""])[0]
-                                }]
-                            }]
-                        },
-                        "streamSettings": {"network": network, "security": security}
-                    }
+              # Формируем итоговый конфиг
+              final_config = {
+                  "log": {
+                      "access": "",
+                      "error": "",
+                      "loglevel": "warning"
+                  },
+                  "dns": {
+                      "servers": ["https://1.1.1.1/dns-query", "https://1.0.0.1/dns-query"],
+                      "queryStrategy": "UseIPv4"
+                  },
+                  "routing": {
+                      "domainStrategy": "AsIs",
+                      "domainMatcher": "hybrid",
+                      "balancers": [{
+                          "tag": "balancer",
+                          "selector": ["proxy-"],
+                          "strategy": {"type": "leastPing"},
+                          "fallbackTag": "proxy-1"
+                      }],
+                      "rules": [
+                          {"port": "53", "type": "field", "network": "tcp,udp", "outboundTag": "dns-out"},
+                          {"type": "field", "ip": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8"], "outboundTag": "direct"},
+                          {"type": "field", "domain": ["regexp:.*\\.ru$", "domain:ya.ru", "domain:vk.com"], "outboundTag": "direct"},
+                          {"type": "field", "network": "tcp,udp", "balancerTag": "balancer"}
+                      ]
+                  },
+                  "inbounds": [
+                      {"tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": {"udp": True, "auth": "noauth"}},
+                      {"tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": {"auth": "noauth"}}
+                  ],
+                  "outbounds": outbounds + [
+                      {"tag": "direct", "protocol": "freedom", "settings": {}},
+                      {"tag": "block", "protocol": "blackhole", "settings": {"response": {"type": "none"}}},
+                      {"tag": "dns-out", "protocol": "dns", "settings": {"blockTypes": [65, 28], "nonIPQuery": "reject"}}
+                  ],
+                  "burstObservatory": {
+                      "pingConfig": {
+                          "timeout": "3s",
+                          "interval": "30s",
+                          "sampling": 2,
+                          "destination": "http://www.gstatic.com/generate_204"
+                      },
+                      "subjectSelector": ["proxy-"]
+                  },
+                  "remarks": "🇪🇺 Авто выбор"
+              }
 
-                    if network == "grpc":
-                        outbound["streamSettings"]["grpcSettings"] = {"serviceName": query.get("serviceName", query.get("path", [""]))[0]}
-                    elif network == "ws":
-                        outbound["streamSettings"]["wsSettings"] = {"path": query.get("path", ["/"])[0], "headers": {"Host": query.get("host", [""])[0]}}
+              with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+                  json.dump(final_config, f, indent=2, ensure_ascii=False)
+              
+              print("config.json generated successfully.")
 
-                    if security == "reality":
-                        pbk = query.get("pbk", [""])[0]
-                        # СТРОГАЯ ПРОВЕРКА: Если у REALITY нет pbk, узлы вызывают ошибку empty password!
-                        if not pbk:
-                            return None
-                        outbound["streamSettings"]["realitySettings"] = {
-                            "serverName": query.get("sni", [""])[0],
-                            "publicKey": pbk,
-                            "fingerprint": query.get("fp", ["chrome"])[0],
-                            "shortId": query.get("sid", [""])[0]
-                        }
-                    elif security == "tls":
-                        outbound["streamSettings"]["tlsSettings"] = {
-                            "serverName": query.get("sni", [address])[0],
-                            "fingerprint": query.get("fp", ["chrome"])[0]
-                        }
-                    return outbound
-                except Exception:
-                    return None
+          asyncio.run(main())
+          EOF
 
-            def parse_vmess(uri):
-                try:
-                    b64_str = uri[8:].split("#")[0]
-                    b64_str += "=" * (-len(b64_str) % 4)
-                    data = json.loads(base64.b64decode(b64_str).decode('utf-8', errors='ignore'))
-                    address = data.get("add")
-                    port = int(data.get("port", 443))
-                    user_id = data.get("id")
-                    if not address or not user_id: return None
-
-                    net = data.get("net", "tcp")
-                    sec = "tls" if data.get("tls") == "tls" else "none"
-
-                    outbound = {
-                        "protocol": "vmess",
-                        "settings": {
-                            "vnext": [{
-                                "address": address,
-                                "port": port,
-                                "users": [{"id": user_id, "alterId": int(data.get("aid", 0)), "security": "auto"}]
-                            }]
-                        },
-                        "streamSettings": {"network": net, "security": sec}
-                    }
-                    if net == "ws":
-                        outbound["streamSettings"]["wsSettings"] = {"path": data.get("path", "/"), "headers": {"Host": data.get("host", "")}}
-                    elif net == "grpc":
-                        outbound["streamSettings"]["grpcSettings"] = {"serviceName": data.get("path", "")}
-                    if sec == "tls":
-                        outbound["streamSettings"]["tlsSettings"] = {"serverName": data.get("host", address)}
-                    return outbound
-                except Exception:
-                    return None
-
-            def parse_trojan(uri):
-                try:
-                    parsed = urllib.parse.urlparse(uri)
-                    password = parsed.username
-                    address = parsed.hostname
-                    port = parsed.port or 443
-                    if not password or not address: return None
-                    query = urllib.parse.parse_qs(parsed.query)
-                    sec = query.get("security", ["tls"])[0]
-
-                    outbound = {
-                        "protocol": "trojan",
-                        "settings": {"servers": [{"address": address, "port": int(port), "password": password}]},
-                        "streamSettings": {"network": query.get("type", ["tcp"])[0], "security": sec}
-                    }
-                    if sec == "tls":
-                        outbound["streamSettings"]["tlsSettings"] = {"serverName": query.get("sni", [address])[0]}
-                    return outbound
-                except Exception:
-                    return None
-
-            def parse_line(line):
-                line = line.strip()
-                if line.startswith("vless://"): return parse_vless(line)
-                elif line.startswith("vmess://"): return parse_vmess(line)
-                elif line.startswith("trojan://"): return parse_trojan(line)
-                return None
-
-            def extract_nodes(url):
-                raw_lines = fetch_base64_list(url)
-                nodes = []
-                for line in raw_lines:
-                    node = parse_line(line)
-                    if node:
-                        nodes.append(node)
-                return nodes
-
-            def filter_working_nodes(nodes_list, max_limit=200):
-                working_nodes = []
-                for node in nodes_list:
-                    if len(working_nodes) >= max_limit:
-                        break
-                    try:
-                        server_info = None
-                        if "vnext" in node.get("settings", {}):
-                            server_info = node["settings"]["vnext"][0]
-                        elif "servers" in node.get("settings", {}):
-                            server_info = node["settings"]["servers"][0]
-
-                        if not server_info: continue
-
-                        host = server_info["address"]
-                        port = int(server_info["port"])
-
-                        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        sock.settimeout(1.2)
-                        result = sock.connect_ex((host, port))
-                        sock.close()
-
-                        if result == 0:
-                            working_nodes.append(node)
-                    except Exception:
-                        continue
-
-                return working_nodes[:max_limit]
-
-            def build_single_json(title, nodes_list):
-                outbounds = []
-                real_tags = []
-
-                for idx, ob in enumerate(nodes_list, start=1):
-                    node_ob = copy.deepcopy(ob)
-                    tag = f"proxy-{idx}"
-                    node_ob["tag"] = tag
-                    outbounds.append(node_ob)
-                    real_tags.append(tag)
-
-                if not real_tags:
-                    real_tags = ["direct"]
-
-                # Конфигурация burstObservatory + leastPing балансировщика
-                return {
-                    "dns": {
-                        "servers": ["https://1.1.1.1/dns-query", "https://1.0.0.1/dns-query"],
-                        "queryStrategy": "UseIPv4"
-                    },
-                    "burstObservatory": {
-                        "subjectSelector": ["proxy-"],
-                        "pingConfig": {
-                            "destination": "http://www.gstatic.com/generate_204",
-                            "interval": "30s",
-                            "timeout": "3s",
-                            "sampling": 2
-                        }
-                    },
-                    "routing": {
-                        "domainStrategy": "AsIs",
-                        "rules": [
-                            {"port": "53", "type": "field", "network": "tcp,udp", "outboundTag": "dns-out"},
-                            {"type": "field", "ip": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8"], "outboundTag": "direct"},
-                            {"type": "field", "domain": ["regexp:.*\\.ru$", "domain:ya.ru", "domain:vk.com"], "outboundTag": "direct"},
-                            {"type": "field", "network": "tcp,udp", "balancerTag": "auto-balancer"}
-                        ],
-                        "balancers": [
-                            {
-                                "tag": "auto-balancer",
-                                "selector": ["proxy-"],
-                                "strategy": {"type": "leastPing"},
-                                "fallbackTag": real_tags[0]
-                            }
-                        ]
-                    },
-                    "inbounds": [
-                        {"tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": {"udp": True}},
-                        {"tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http"}
-                    ],
-                    "outbounds": outbounds + [
-                        {"tag": "direct", "protocol": "freedom", "settings": {}},
-                        {"tag": "block", "protocol": "blackhole", "settings": {"response": {"type": "none"}}},
-                        {"tag": "dns-out", "protocol": "dns", "settings": {"blockTypes": [65, 28], "nonIPQuery": "reject"}}
-                    ],
-                    "remarks": title
-                }
-
-            all_server_configs = []
-
-            # 1. Авто выбор (из wf.txt)
-            raw_wf_nodes = extract_nodes(URL_WF)
-            valid_wf_nodes = filter_working_nodes(raw_wf_nodes, max_limit=200)
-            if valid_wf_nodes:
-                all_server_configs.append(build_single_json("🇪🇺 Авто выбор", valid_wf_nodes))
-
-            # 2. Авто - Обход глушилок (из lte.txt)
-            raw_lte_nodes = extract_nodes(URL_LTE)
-            valid_lte_nodes = filter_working_nodes(raw_lte_nodes, max_limit=200)
-            if valid_lte_nodes:
-                all_server_configs.append(build_single_json("🇪🇺 Авто - Обход глушилок", valid_lte_nodes))
-
-            # Заглушка
-            dummy_config = {
-                "dns": {"servers": ["1.1.1.1"]},
-                "inbounds": [{"tag": "socks", "port": 10808, "protocol": "socks"}],
-                "outbounds": [{"tag": "block", "protocol": "blackhole", "settings": {"response": {"type": "none"}}}],
-                "remarks": "By hello team♥️"
-            }
-            all_server_configs.append(dummy_config)
-
-            # ВАЛИДАЦИЯ КАЖДОГО JSON ДВИЖКОМ XRAY
-            verified_configs = []
-            for cfg in all_server_configs:
-                with open("temp_check.json", "w", encoding="utf-8") as tmp:
-                    json.dump(cfg, tmp, ensure_ascii=False)
-                
-                # Запускаем проверку синтаксиса Xray
-                res = subprocess.run(["xray", "run", "-test", "-c", "temp_check.json"], capture_output=True, text=True)
-                if res.returncode == 0:
-                    verified_configs.append(cfg)
-                else:
-                    print(f"Конфиг '{cfg.get('remarks')}' не прошёл валидацию Xray:")
-                    print(res.stderr)
-
-            if os.path.exists("temp_check.json"):
-                os.remove("temp_check.json")
-
-            # Запись в config.json
-            with open("config.json", "w", encoding="utf-8") as f:
-                json.dump(verified_configs, f, ensure_ascii=False, indent=2)
-
-            print(f"Готово! В config.json записано {len(verified_configs)} проверенных профилей.")
+      - name: Commit and Push changes
         run: |
-          python3 -c "$PYTHON_SCRIPT"
-
-      - name: Commit and Push Changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]"
+          git config --global user.name "Dwen-Bot"
+          git config --global user.email "dwen@vpn.local"
           git add config.json
-          if ! git diff --quiet || ! git diff --staged --quiet; then
-            git commit -m "Fix Reality validation and add Xray core verification"
-            git push
-          fi
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: 5k servers pool 🇪🇺 [$(date)]" && git push)
