@@ -33,9 +33,9 @@ jobs:
           import aiohttp
           from urllib.parse import urlparse, parse_qs, unquote
 
-          SOURCE_URL = "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/26.txt"
+          SOURCE_URL = "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/refs/heads/main/separated-protocols-chunks/vless/EbraSha-Protocol-Chunks-vless-001.txt"
           OUTPUT_FILE = "config.json"
-          MAX_SERVERS = 5000
+          MAX_SERVERS = 1000
 
           async def fetch_sources():
               async with aiohttp.ClientSession() as session:
