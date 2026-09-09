@@ -27,7 +27,7 @@ jobs:
 
       - name: Generate config.json via Python
         run: |
-          python3 - << 'EOF'
+          python3 - << 'PYEOF'
           import json
           import asyncio
           import aiohttp
@@ -40,11 +40,9 @@ jobs:
           async def fetch_sources():
               async with aiohttp.ClientSession() as session:
                   try:
-                      async with session.get(SOURCE_URL, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                      async with session.get(SOURCE_URL, timeout=aiohttp.ClientTimeout(total=20)) as resp:
                           if resp.status == 200:
-                              text = await resp.text()
-                              print(f"Fetched {len(text)} characters.")
-                              return text
+                              return await resp.text()
                   except Exception as e:
                       print(f"Fetch Error: {e}")
               return ""
@@ -54,54 +52,60 @@ jobs:
                   if not link.startswith("vless://"):
                       return None
                   
-                  # Удаляем префикс
+                  # 1. Убираем префикс
                   content = link[8:]
                   
-                  # Разделяем основную часть и имя (после #)
+                  # 2. Отделяем имя (fragment) после #
+                  server_name = ""
                   if '#' in content:
                       core, fragment = content.split('#', 1)
                       server_name = unquote(fragment)
                   else:
                       core = content
-                      server_name = f"Server-{hash(core) % 1000}"
+                      server_name = f"Server-{hash(core) % 10000}"
 
-                  # Ищем @ для разделения пользователя и хоста
+                  # 3. Отделяем пользователя от хоста по первому @
                   if '@' not in core:
                       return None
                   
                   user_part, host_part = core.split('@', 1)
+                  uuid = user_part.split(':')[0] # UUID всегда до двоеточия или конца user_part
                   
-                  # Парсим UUID
-                  uuid = user_part.split(':')[0]
-                  
-                  # Парсим Хост и Порт (учитываем параметры после ?)
-                  query_params = {}
-                  if '?' in host_part:
-                      host_addr, query_string = host_part.split('?', 1)
-                      query_params = parse_qs(query_string)
+                  # 4. Чистим host_part от путей (если порт выглядит как 8443/)
+                  # Иногда бывает vless://uuid@host:port/path?query
+                  path_and_query = ""
+                  if '/' in host_part:
+                      host_addr, path_and_query = host_part.split('/', 1)
                   else:
                       host_addr = host_part
 
-                  # Обработка адреса (может быть [ipv6]:port или domain:port)
-                  port = 443 # дефолт
+                  # 5. Парсим адрес и порт
+                  port = 443
                   address = host_addr
                   
+                  # Обработка IPv6 [::1]:port или domain:port
                   if host_addr.startswith('['):
-                      # IPv6
                       bracket_end = host_addr.find(']')
                       if bracket_end != -1:
                           address = host_addr[1:bracket_end]
                           remaining = host_addr[bracket_end+1:]
                           if remaining.startswith(':'):
-                              port = int(remaining[1:])
+                              try: port = int(remaining[1:])
+                              except: pass
                   else:
-                      # Domain or IPv4
                       if ':' in host_addr:
                           parts = host_addr.rsplit(':', 1)
                           address = parts[0]
-                          port = int(parts[1])
+                          try: port = int(parts[1])
+                          except: pass # Если порт кривой, оставим дефолт 443
 
-                  # Извлекаем параметры для Reality/TLS
+                  # 6. Парсим параметры из path_and_query (если они есть после /)
+                  query_params = {}
+                  if '?' in path_and_query:
+                      _, query_string = path_and_query.split('?', 1)
+                      query_params = parse_qs(query_string)
+                  
+                  # Извлекаем настройки
                   flow = query_params.get('flow', [''])[0]
                   sni = query_params.get('sni', [address])[0]
                   pbk = query_params.get('pbk', [''])[0]
@@ -109,8 +113,6 @@ jobs:
                   fp = query_params.get('fp', ['chrome'])[0]
                   net_type = query_params.get('type', ['tcp'])[0]
                   service_name = query_params.get('serviceName', [''])[0]
-                  
-                  # Если path есть, добавляем его (для ws/grpc)
                   path = query_params.get('path', ['/'])[0]
 
                   return {
@@ -128,13 +130,12 @@ jobs:
                       "name": server_name
                   }
               except Exception as e:
-                  print(f"Parse Error on line: {link[:50]}... Error: {e}")
+                  # print(f"Skip line: {e}")
                   return None
 
           def create_outbound(tag, data):
               stream_set = {"network": data["net"]}
               
-              # Настройка безопасности
               if data["pbk"]:
                   stream_set["security"] = "reality"
                   stream_set["realitySettings"] = {
@@ -152,14 +153,10 @@ jobs:
               else:
                   stream_set["security"] = "none"
 
-              # Дополнительные настройки транспорта
               if data["net"] == "grpc":
                   stream_set["grpcSettings"] = {"serviceName": data["serviceName"]}
               elif data["net"] == "ws":
                   stream_set["wsSettings"] = {"path": data["path"], "headers": {"Host": data["sni"]}}
-              elif data["net"] == "tcp" and data["path"]:
-                  # Иногда path используют для http upgrade
-                  pass 
 
               return {
                   "protocol": "vless",
@@ -175,43 +172,29 @@ jobs:
               }
 
           async def main():
-              print("Starting generation...")
+              print("Fetching 26.txt...")
               raw_data = await fetch_sources()
               
               outbounds = []
               count = 0
-              errors = 0
               
               lines = raw_data.strip().split('\n')
-              print(f"Total lines found: {len(lines)}")
+              print(f"Total lines: {len(lines)}")
 
               for line in lines:
                   if count >= MAX_SERVERS: break
                   line = line.strip()
-                  if not line: continue
+                  if not line.startswith("vless://"): continue
                   
-                  if not line.startswith("vless://"):
-                      # Пропускаем мусор, но считаем
-                      continue
-
                   data = parse_vless_link(line)
                   if data:
                       tag = f"proxy-{count + 1}"
                       outbounds.append(create_outbound(tag, data))
                       count += 1
-                  else:
-                      errors += 1
 
-              print(f"Success: {count} servers parsed. Errors/Skipped: {errors}")
+              print(f"Parsed: {count} servers.")
 
-              if count == 0:
-                  print("CRITICAL: No servers found! Check source format.")
-                  # Создаем фиктивный сервер, чтобы конфиг был валидным
-                  outbounds.append(create_outbound("proxy-dummy", {
-                      "address": "127.0.0.1", "port": 1080, "id": "00000000-0000-0000-0000-000000000000",
-                      "flow": "", "sni": "localhost", "pbk": "", "sid": "", "fp": "chrome", "net": "tcp", "serviceName": "", "path": "/"
-                  }))
-
+              # Финальный конфиг
               final_config = {
                   "log": {"access": "", "error": "", "loglevel": "warning"},
                   "dns": {
@@ -249,16 +232,16 @@ jobs:
                       },
                       "subjectSelector": ["proxy-"]
                   },
-                  "remarks": "🇪🇺 Авто выбор"
+                  "remarks": "🇺 Авто выбор"
               }
 
               with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
                   json.dump(final_config, f, indent=2, ensure_ascii=False)
               
-              print("config.json generated and saved.")
+              print("Done. config.json saved.")
 
           asyncio.run(main())
-          EOF
+          PYEOF
 
       - name: Commit and Push changes
         run: |
