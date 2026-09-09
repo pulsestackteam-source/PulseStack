@@ -430,7 +430,7 @@
           "realitySettings": {
             "serverName": "www.cloudflare.com",
             "publicKey": "NMgy1XgCSXExOg6Tg8xG9lCWttMF6sjdpB41lZy6FWo",
-            "fingerprint": "firefox",
+            "fingerprint": "chrome",
             "shortId": "5c256336e3b673fa"
           }
         },
@@ -459,11 +459,69 @@
           "realitySettings": {
             "serverName": "www.cloudflare.com",
             "publicKey": "NMgy1XgCSXExOg6Tg8xG9lCWttMF6sjdpB41lZy6FWo",
-            "fingerprint": "qq",
+            "fingerprint": "edge",
             "shortId": "5c256336e3b673fa"
           }
         },
         "tag": "proxy-14"
+      },
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "195.123.213.28",
+              "port": 443,
+              "users": [
+                {
+                  "id": "02fcc1a4-ee90-4970-8bbb-4ffaa8109d24",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "www.cloudflare.com",
+            "publicKey": "NMgy1XgCSXExOg6Tg8xG9lCWttMF6sjdpB41lZy6FWo",
+            "fingerprint": "firefox",
+            "shortId": "5c256336e3b673fa"
+          }
+        },
+        "tag": "proxy-15"
+      },
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "195.123.213.28",
+              "port": 443,
+              "users": [
+                {
+                  "id": "02fcc1a4-ee90-4970-8bbb-4ffaa8109d24",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "www.cloudflare.com",
+            "publicKey": "NMgy1XgCSXExOg6Tg8xG9lCWttMF6sjdpB41lZy6FWo",
+            "fingerprint": "qq",
+            "shortId": "5c256336e3b673fa"
+          }
+        },
+        "tag": "proxy-16"
       },
       {
         "protocol": "vless",
@@ -490,7 +548,7 @@
             "fingerprint": "android"
           }
         },
-        "tag": "proxy-15"
+        "tag": "proxy-17"
       },
       {
         "protocol": "vless",
@@ -517,7 +575,7 @@
             "fingerprint": "chrome"
           }
         },
-        "tag": "proxy-16"
+        "tag": "proxy-18"
       },
       {
         "protocol": "vless",
@@ -539,64 +597,6 @@
         "streamSettings": {
           "network": "tcp",
           "security": "none"
-        },
-        "tag": "proxy-17"
-      },
-      {
-        "protocol": "vless",
-        "settings": {
-          "vnext": [
-            {
-              "address": "217.60.96.124",
-              "port": 443,
-              "users": [
-                {
-                  "id": "2b2ea9d8-501e-4b79-8fd9-19bff6ed5cf5",
-                  "encryption": "none",
-                  "flow": "xtls-rprx-vision"
-                }
-              ]
-            }
-          ]
-        },
-        "streamSettings": {
-          "network": "tcp",
-          "security": "reality",
-          "realitySettings": {
-            "serverName": "de.cloudtechone.org",
-            "publicKey": "_IBXb9NfhsnS21XbU9PIl73ExvrjXGXVLO0Za1ui5Fo",
-            "fingerprint": "chrome",
-            "shortId": "f93c9d5127e622e4"
-          }
-        },
-        "tag": "proxy-18"
-      },
-      {
-        "protocol": "vless",
-        "settings": {
-          "vnext": [
-            {
-              "address": "217.60.96.124",
-              "port": 443,
-              "users": [
-                {
-                  "id": "2b2ea9d8-501e-4b79-8fd9-19bff6ed5cf5",
-                  "encryption": "none",
-                  "flow": "xtls-rprx-vision"
-                }
-              ]
-            }
-          ]
-        },
-        "streamSettings": {
-          "network": "tcp",
-          "security": "reality",
-          "realitySettings": {
-            "serverName": "de.cloudtechone.org",
-            "publicKey": "_IBXb9NfhsnS21XbU9PIl73ExvrjXGXVLO0Za1ui5Fo",
-            "fingerprint": "edge",
-            "shortId": "f93c9d5127e622e4"
-          }
         },
         "tag": "proxy-19"
       },
@@ -623,7 +623,7 @@
           "realitySettings": {
             "serverName": "de.cloudtechone.org",
             "publicKey": "_IBXb9NfhsnS21XbU9PIl73ExvrjXGXVLO0Za1ui5Fo",
-            "fingerprint": "firefox",
+            "fingerprint": "chrome",
             "shortId": "f93c9d5127e622e4"
           }
         },
@@ -652,7 +652,7 @@
           "realitySettings": {
             "serverName": "de.cloudtechone.org",
             "publicKey": "_IBXb9NfhsnS21XbU9PIl73ExvrjXGXVLO0Za1ui5Fo",
-            "fingerprint": "ios",
+            "fingerprint": "edge",
             "shortId": "f93c9d5127e622e4"
           }
         },
@@ -681,7 +681,7 @@
           "realitySettings": {
             "serverName": "de.cloudtechone.org",
             "publicKey": "_IBXb9NfhsnS21XbU9PIl73ExvrjXGXVLO0Za1ui5Fo",
-            "fingerprint": "qq",
+            "fingerprint": "firefox",
             "shortId": "f93c9d5127e622e4"
           }
         },
@@ -710,7 +710,7 @@
           "realitySettings": {
             "serverName": "de.cloudtechone.org",
             "publicKey": "_IBXb9NfhsnS21XbU9PIl73ExvrjXGXVLO0Za1ui5Fo",
-            "fingerprint": "safari",
+            "fingerprint": "ios",
             "shortId": "f93c9d5127e622e4"
           }
         },
@@ -721,11 +721,11 @@
         "settings": {
           "vnext": [
             {
-              "address": "45.129.186.205",
+              "address": "217.60.96.124",
               "port": 443,
               "users": [
                 {
-                  "id": "ca19c24a-e5ec-45f8-8cd1-c97d84da5e35",
+                  "id": "2b2ea9d8-501e-4b79-8fd9-19bff6ed5cf5",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -737,10 +737,10 @@
           "network": "tcp",
           "security": "reality",
           "realitySettings": {
-            "serverName": "ru.oblaco.bet",
-            "publicKey": "ntzKs0FMUCLOwBKYNbvzf9FZKEL6tZP6BXccNKJCcF8",
-            "fingerprint": "android",
-            "shortId": ""
+            "serverName": "de.cloudtechone.org",
+            "publicKey": "_IBXb9NfhsnS21XbU9PIl73ExvrjXGXVLO0Za1ui5Fo",
+            "fingerprint": "qq",
+            "shortId": "f93c9d5127e622e4"
           }
         },
         "tag": "proxy-24"
@@ -750,11 +750,11 @@
         "settings": {
           "vnext": [
             {
-              "address": "45.129.186.205",
+              "address": "217.60.96.124",
               "port": 443,
               "users": [
                 {
-                  "id": "ca19c24a-e5ec-45f8-8cd1-c97d84da5e35",
+                  "id": "2b2ea9d8-501e-4b79-8fd9-19bff6ed5cf5",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -766,10 +766,10 @@
           "network": "tcp",
           "security": "reality",
           "realitySettings": {
-            "serverName": "ru.oblaco.bet",
-            "publicKey": "ntzKs0FMUCLOwBKYNbvzf9FZKEL6tZP6BXccNKJCcF8",
-            "fingerprint": "chrome",
-            "shortId": ""
+            "serverName": "de.cloudtechone.org",
+            "publicKey": "_IBXb9NfhsnS21XbU9PIl73ExvrjXGXVLO0Za1ui5Fo",
+            "fingerprint": "safari",
+            "shortId": "f93c9d5127e622e4"
           }
         },
         "tag": "proxy-25"
@@ -797,7 +797,7 @@
           "realitySettings": {
             "serverName": "ru.oblaco.bet",
             "publicKey": "ntzKs0FMUCLOwBKYNbvzf9FZKEL6tZP6BXccNKJCcF8",
-            "fingerprint": "firefox",
+            "fingerprint": "android",
             "shortId": ""
           }
         },
@@ -826,7 +826,7 @@
           "realitySettings": {
             "serverName": "ru.oblaco.bet",
             "publicKey": "ntzKs0FMUCLOwBKYNbvzf9FZKEL6tZP6BXccNKJCcF8",
-            "fingerprint": "qq",
+            "fingerprint": "chrome",
             "shortId": ""
           }
         },
@@ -837,11 +837,11 @@
         "settings": {
           "vnext": [
             {
-              "address": "46.28.67.55",
+              "address": "45.129.186.205",
               "port": 443,
               "users": [
                 {
-                  "id": "d1a6a033-fdbd-46a6-a177-3370ba042b9f",
+                  "id": "ca19c24a-e5ec-45f8-8cd1-c97d84da5e35",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -853,10 +853,10 @@
           "network": "tcp",
           "security": "reality",
           "realitySettings": {
-            "serverName": "www.cloudflare.com",
-            "publicKey": "i2dJ1_XGDpp50qpEclh6SWSWkxt4B0t2hi2qOVQbeSU",
-            "fingerprint": "android",
-            "shortId": "d06d78e974491b6e"
+            "serverName": "ru.oblaco.bet",
+            "publicKey": "ntzKs0FMUCLOwBKYNbvzf9FZKEL6tZP6BXccNKJCcF8",
+            "fingerprint": "firefox",
+            "shortId": ""
           }
         },
         "tag": "proxy-28"
@@ -866,11 +866,11 @@
         "settings": {
           "vnext": [
             {
-              "address": "5.34.178.120",
+              "address": "45.129.186.205",
               "port": 443,
               "users": [
                 {
-                  "id": "9063f9fb-e88a-4ee0-b4a4-a92ca7316a9f",
+                  "id": "ca19c24a-e5ec-45f8-8cd1-c97d84da5e35",
                   "encryption": "none",
                   "flow": "xtls-rprx-vision"
                 }
@@ -882,10 +882,10 @@
           "network": "tcp",
           "security": "reality",
           "realitySettings": {
-            "serverName": "www.cloudflare.com",
-            "publicKey": "EVhq2BxKuw2Cody1DmF_HPvUYKwzdXbHP47blUv-eRM",
-            "fingerprint": "android",
-            "shortId": "55ab5559e3a6d10a"
+            "serverName": "ru.oblaco.bet",
+            "publicKey": "ntzKs0FMUCLOwBKYNbvzf9FZKEL6tZP6BXccNKJCcF8",
+            "fingerprint": "qq",
+            "shortId": ""
           }
         },
         "tag": "proxy-29"
@@ -913,7 +913,7 @@
           "realitySettings": {
             "serverName": "www.cloudflare.com",
             "publicKey": "EVhq2BxKuw2Cody1DmF_HPvUYKwzdXbHP47blUv-eRM",
-            "fingerprint": "edge",
+            "fingerprint": "android",
             "shortId": "55ab5559e3a6d10a"
           }
         },
