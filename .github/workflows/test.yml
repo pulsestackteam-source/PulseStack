@@ -1,4 +1,4 @@
-name: Generate 5k Auto-Select Config
+name: Generate Clean 5k Config
 
 on:
   schedule:
@@ -31,11 +31,16 @@ jobs:
           import json
           import asyncio
           import aiohttp
+          import re
           from urllib.parse import urlparse, parse_qs, unquote
 
+          # Твой новый источник
           SOURCE_URL = "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/refs/heads/main/separated-protocols-chunks/vless/EbraSha-Protocol-Chunks-vless-001.txt"
           OUTPUT_FILE = "config.json"
-          MAX_SERVERS = 1000
+          MAX_SERVERS = 5000
+
+          # Строгий regex для валидации UUID v4
+          UUID_REGEX = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
 
           async def fetch_sources():
               async with aiohttp.ClientSession() as session:
@@ -52,27 +57,34 @@ jobs:
                   if not link.startswith("vless://"):
                       return None
                   
-                  # 1. Убираем префикс
                   content = link[8:]
                   
-                  # 2. Отделяем имя (fragment) после #
+                  # 1. Отделяем имя (fragment) после #
                   server_name = ""
                   if '#' in content:
                       core, fragment = content.split('#', 1)
                       server_name = unquote(fragment)
                   else:
                       core = content
-                      server_name = f"Server-{hash(core) % 10000}"
+                      server_name = f"Node-{hash(core) % 10000}"
 
-                  # 3. Отделяем пользователя от хоста по первому @
+                  # 2. Отделяем пользователя от хоста по @
                   if '@' not in core:
                       return None
                   
                   user_part, host_part = core.split('@', 1)
-                  uuid = user_part.split(':')[0] # UUID всегда до двоеточия или конца user_part
                   
-                  # 4. Чистим host_part от путей (если порт выглядит как 8443/)
-                  # Иногда бывает vless://uuid@host:port/path?query
+                  # 3. Извлекаем и ВАЛИДИРУЕМ UUID
+                  # Сначала декодируем %xx, потом приводим к нижнему регистру
+                  raw_uuid = user_part.split(':')[0]
+                  clean_uuid = unquote(raw_uuid).lower().strip()
+                  
+                  # ГЛАВНОЕ ИСПРАВЛЕНИЕ: Если UUID не похож на UUID — выкидываем сервер
+                  if not UUID_REGEX.match(clean_uuid):
+                      # print(f"Skipping invalid UUID: {clean_uuid[:20]}...")
+                      return None
+
+                  # 4. Чистим хост от путей (решаем проблему 8443/)
                   path_and_query = ""
                   if '/' in host_part:
                       host_addr, path_and_query = host_part.split('/', 1)
@@ -83,7 +95,6 @@ jobs:
                   port = 443
                   address = host_addr
                   
-                  # Обработка IPv6 [::1]:port или domain:port
                   if host_addr.startswith('['):
                       bracket_end = host_addr.find(']')
                       if bracket_end != -1:
@@ -97,15 +108,14 @@ jobs:
                           parts = host_addr.rsplit(':', 1)
                           address = parts[0]
                           try: port = int(parts[1])
-                          except: pass # Если порт кривой, оставим дефолт 443
+                          except: pass
 
-                  # 6. Парсим параметры из path_and_query (если они есть после /)
+                  # 6. Параметры запроса
                   query_params = {}
                   if '?' in path_and_query:
                       _, query_string = path_and_query.split('?', 1)
                       query_params = parse_qs(query_string)
                   
-                  # Извлекаем настройки
                   flow = query_params.get('flow', [''])[0]
                   sni = query_params.get('sni', [address])[0]
                   pbk = query_params.get('pbk', [''])[0]
@@ -118,7 +128,7 @@ jobs:
                   return {
                       "address": address,
                       "port": port,
-                      "id": uuid,
+                      "id": clean_uuid, # Используем только очищенный UUID
                       "flow": flow,
                       "sni": sni,
                       "pbk": pbk,
@@ -130,7 +140,6 @@ jobs:
                       "name": server_name
                   }
               except Exception as e:
-                  # print(f"Skip line: {e}")
                   return None
 
           def create_outbound(tag, data):
@@ -172,29 +181,32 @@ jobs:
               }
 
           async def main():
-              print("Fetching 26.txt...")
+              print("Fetching EbraSha list...")
               raw_data = await fetch_sources()
               
               outbounds = []
               count = 0
+              skipped = 0
               
               lines = raw_data.strip().split('\n')
-              print(f"Total lines: {len(lines)}")
+              print(f"Total lines found: {len(lines)}")
 
               for line in lines:
                   if count >= MAX_SERVERS: break
                   line = line.strip()
-                  if not line.startswith("vless://"): continue
+                  if not line.startswith("vless://"): 
+                      continue
                   
                   data = parse_vless_link(line)
                   if data:
                       tag = f"proxy-{count + 1}"
                       outbounds.append(create_outbound(tag, data))
                       count += 1
+                  else:
+                      skipped += 1
 
-              print(f"Parsed: {count} servers.")
+              print(f"Success: {count} servers. Skipped (bad UUID/format): {skipped}")
 
-              # Финальный конфиг
               final_config = {
                   "log": {"access": "", "error": "", "loglevel": "warning"},
                   "dns": {
@@ -238,7 +250,7 @@ jobs:
               with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
                   json.dump(final_config, f, indent=2, ensure_ascii=False)
               
-              print("Done. config.json saved.")
+              print("config.json saved successfully.")
 
           asyncio.run(main())
           PYEOF
@@ -248,4 +260,4 @@ jobs:
           git config --global user.name "Dwen-Bot"
           git config --global user.email "dwen@vpn.local"
           git add config.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: 5k servers pool 🇪🇺 [$(date)]" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: Clean 5k pool 🇪🇺 [$(date)]" && git push)
