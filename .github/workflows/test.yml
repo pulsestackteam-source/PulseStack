@@ -2,8 +2,12 @@ name: Generate 5k Auto-Select Config
 
 on:
   schedule:
-    - cron: '0 */5 * * *' # Запуск каждые 5 часов
-  workflow_dispatch: # Ручной запуск по кнопке
+    - cron: '0 */5 * * *' # Каждые 5 часов
+  workflow_dispatch: # Ручной запуск
+
+# ⚠️ ВАЖНО: Даём права на запись в репозиторий
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -35,8 +39,8 @@ jobs:
           OUTPUT_FILE = "config.json"
           MAX_SERVERS = 5000
           
-          # Базовые настройки из твоего примера
-          BASE_UUID = "b5ca5ab3-8cbc-4ac3-89da-9cd360589ecb" 
+          # Твой UUID из примера
+          STATIC_UUID = "b5ca5ab3-8cbc-4ac3-89da-9cd360589ecb" 
           
           async def fetch_sources():
               async with aiohttp.ClientSession() as session:
@@ -49,14 +53,12 @@ jobs:
               return ""
 
           def parse_vless_line(line):
-              """Парсинг VLESS ссылки для извлечения параметров"""
+              """Парсинг VLESS ссылки"""
               try:
                   if not line.startswith("vless://"):
                       return None
                   
-                  # Убираем vless:// и фрагмент после #
                   core_part = line[8:].split('#')[0]
-                  # Декодируем Base64
                   padding = 4 - len(core_part) % 4
                   if padding != 4:
                       core_part += "=" * padding
@@ -72,10 +74,8 @@ jobs:
                   
                   address = host_port[0]
                   port = int(host_port[1])
-                  user_id = user_info[0] if user_info else BASE_UUID
+                  user_id = user_info[0] if user_info else STATIC_UUID
                   
-                  # Извлекаем параметры из query string (если есть в исходнике)
-                  # В простых списках wf.txt часто только адрес:порт, тогда берем дефолтные Reality настройки
                   return {
                       "address": address,
                       "port": port,
@@ -85,7 +85,7 @@ jobs:
                   return None
 
           def create_outbound(tag, data):
-              """Создание блока outbound по твоему шаблону"""
+              """Создание блока outbound"""
               return {
                   "protocol": "vless",
                   "settings": {
@@ -99,8 +99,8 @@ jobs:
                       "network": "tcp",
                       "security": "reality",
                       "realitySettings": {
-                          "serverName": "www.cloudflare.com", # Дефолтный SNI, можно менять
-                          "publicKey": "lymJAptLKD4NpHVg1r4ybQZuGCxilvHP30DDN9Sz82w", # Пример ключа
+                          "serverName": "www.cloudflare.com",
+                          "publicKey": "lymJAptLKD4NpHVg1r4ybQZuGCxilvHP30DDN9Sz82w",
                           "fingerprint": "firefox",
                           "shortId": "522545cf95347d03"
                       }
@@ -132,13 +132,8 @@ jobs:
 
               print(f"Parsed {count} servers.")
 
-              # Формируем итоговый конфиг
               final_config = {
-                  "log": {
-                      "access": "",
-                      "error": "",
-                      "loglevel": "warning"
-                  },
+                  "log": {"access": "", "error": "", "loglevel": "warning"},
                   "dns": {
                       "servers": ["https://1.1.1.1/dns-query", "https://1.0.0.1/dns-query"],
                       "queryStrategy": "UseIPv4"
@@ -190,7 +185,7 @@ jobs:
 
       - name: Commit and Push changes
         run: |
-          git config --global user.name "Dwen-Bot"
-          git config --global user.email "dwen@vpn.local"
+          git config --global user.name "PulseStackBot"
+          git config --global user.email "pulsestack@vpn.local"
           git add config.json
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: 5k servers pool 🇪🇺 [$(date)]" && git push)
