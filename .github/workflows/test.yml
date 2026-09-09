@@ -5,7 +5,6 @@ on:
     - cron: '0 */5 * * *' # Каждые 5 часов
   workflow_dispatch: # Ручной запуск
 
-# ⚠️ ВАЖНО: Даём права на запись в репозиторий
 permissions:
   contents: write
 
@@ -32,16 +31,12 @@ jobs:
           import json
           import asyncio
           import aiohttp
-          import base64
-          from urllib.parse import urlparse, parse_qs
+          from urllib.parse import urlparse, parse_qs, unquote
 
           SOURCE_URL = "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/26.txt"
           OUTPUT_FILE = "config.json"
           MAX_SERVERS = 5000
-          
-          # Твой UUID из примера
-          STATIC_UUID = "b5ca5ab3-8cbc-4ac3-89da-9cd360589ecb" 
-          
+
           async def fetch_sources():
               async with aiohttp.ClientSession() as session:
                   try:
@@ -52,85 +47,157 @@ jobs:
                       print(f"Error fetching source: {e}")
               return ""
 
-          def parse_vless_line(line):
-              """Парсинг VLESS ссылки"""
+          def parse_vless_link(link):
+              """Парсинг стандартной VLESS ссылки"""
               try:
-                  if not line.startswith("vless://"):
+                  if not link.startswith("vless://"):
                       return None
                   
-                  core_part = line[8:].split('#')[0]
-                  padding = 4 - len(core_part) % 4
-                  if padding != 4:
-                      core_part += "=" * padding
-                  decoded_str = base64.b64decode(core_part).decode('utf-8')
+                  # Убираем префикс и разделяем основную часть и фрагмент (имя)
+                  main_part = link[8:]
+                  if '#' in main_part:
+                      core, fragment = main_part.split('#', 1)
+                  else:
+                      core = main_part
+                      fragment = ""
+
+                  # Декодируем имя сервера из URL-кодирования (для UTF-8 и эмодзи)
+                  server_name = unquote(fragment) if fragment else f"Server-{hash(core) % 1000}"
+
+                  # Разделяем user@host
+                  if '@' not in core:
+                      return None
                   
-                  parts = decoded_str.split('@')
-                  if len(parts) < 2: return None
+                  user_info, host_info = core.split('@', 1)
                   
-                  user_info = parts[0].split(':')
-                  host_port = parts[1].split(':')
+                  # Парсим хост и порт
+                  # Формат может быть address:port или [ipv6]:port
+                  if host_info.startswith('['):
+                      bracket_end = host_info.find(']')
+                      address = host_info[1:bracket_end]
+                      port = int(host_info[bracket_end+2:]) # пропускаем ]:
+                  else:
+                      parts = host_info.rsplit(':', 1)
+                      if len(parts) != 2: return None
+                      address, port = parts[0], int(parts[1])
+
+                  # Парсим параметры пользователя
+                  user_params = user_info.split(':')
+                  uuid = user_params[0]
                   
-                  if len(host_port) < 2: return None
+                  # Парсим query параметры (flow, sni, pbk и т.д.)
+                  query_string = ""
+                  if '?' in address: # Иногда параметры идут после адреса, но обычно они в конце core части
+                      # В vless ссылках параметры часто идут после uuid через ?
+                      pass 
                   
-                  address = host_port[0]
-                  port = int(host_port[1])
-                  user_id = user_info[0] if user_info else STATIC_UUID
+                  # Более точный парсинг query из конца core части, если она сложная
+                  # Обычно формат: uuid@address:port?params#name
+                  # Мы уже разделили по @, значит params могут быть в host_info или отдельно
+                  # В стандарте vless: vless://uuid@host:port?params#name
                   
+                  # Перепроверим структуру:
+                  # core = uuid@host:port?params
+                  if '?' in core:
+                      host_and_params = core.split('@')[1]
+                      host_part, query_part = host_and_params.split('?', 1)
+                      params = parse_qs(query_part)
+                      
+                      # Извлекаем нужные поля для Reality/TLS
+                      flow = params.get('flow', [''])[0]
+                      sni = params.get('sni', [address])[0] # Если sni нет, берем адрес
+                      pbk = params.get('pbk', [''])[0]
+                      sid = params.get('sid', [''])[0]
+                      fp = params.get('fp', ['chrome'])[0]
+                      net = params.get('type', ['tcp'])[0]
+                      serviceName = params.get('serviceName', [''])[0]
+                  else:
+                      flow = ""
+                      sni = address
+                      pbk = ""
+                      sid = ""
+                      fp = "chrome"
+                      net = "tcp"
+                      serviceName = ""
+
                   return {
                       "address": address,
                       "port": port,
-                      "id": user_id
+                      "id": uuid,
+                      "flow": flow,
+                      "sni": sni,
+                      "pbk": pbk,
+                      "sid": sid,
+                      "fp": fp,
+                      "net": net,
+                      "serviceName": serviceName,
+                      "name": server_name
                   }
-              except:
+              except Exception as e:
+                  # print(f"Parse error: {e}")
                   return None
 
           def create_outbound(tag, data):
               """Создание блока outbound"""
+              security = "none"
+              stream_set = {"network": data["net"]}
+              
+              if data["pbk"]: # Если есть publicKey, значит это Reality или TLS
+                  security = "reality"
+                  stream_set["security"] = "reality"
+                  stream_set["realitySettings"] = {
+                      "serverName": data["sni"],
+                      "publicKey": data["pbk"],
+                      "fingerprint": data["fp"],
+                      "shortId": data["sid"]
+                  }
+              elif data["sni"] and data["sni"] != data["address"]:
+                  security = "tls"
+                  stream_set["security"] = "tls"
+                  stream_set["tlsSettings"] = {
+                      "serverName": data["sni"],
+                      "fingerprint": data["fp"]
+                  }
+
+              # Настройка grpc/http если нужно
+              if data["net"] == "grpc":
+                  stream_set["grpcSettings"] = {"serviceName": data["serviceName"]}
+              elif data["net"] == "ws":
+                  stream_set["wsSettings"] = {"path": "/"} # Упрощенно
+
               return {
                   "protocol": "vless",
                   "settings": {
                       "vnext": [{
                           "address": data["address"],
                           "port": data["port"],
-                          "users": [{"id": data["id"], "encryption": "none", "flow": "xtls-rprx-vision"}]
+                          "users": [{"id": data["id"], "encryption": "none", "flow": data["flow"]}]
                       }]
                   },
-                  "streamSettings": {
-                      "network": "tcp",
-                      "security": "reality",
-                      "realitySettings": {
-                          "serverName": "www.cloudflare.com",
-                          "publicKey": "lymJAptLKD4NpHVg1r4ybQZuGCxilvHP30DDN9Sz82w",
-                          "fingerprint": "firefox",
-                          "shortId": "522545cf95347d03"
-                      }
-                  },
+                  "streamSettings": stream_set,
                   "tag": tag
               }
 
           async def main():
-              print("Starting 5k server generation...")
+              print("Starting generation from 26.txt...")
               raw_data = await fetch_sources()
               
               outbounds = []
-              proxy_tags = []
-              
-              lines = raw_data.strip().split('\n')
               count = 0
               
+              lines = raw_data.strip().split('\n')
               for line in lines:
                   if count >= MAX_SERVERS: break
                   line = line.strip()
-                  if not line: continue
+                  if not line or not line.startswith("vless://"): continue
                   
-                  data = parse_vless_line(line)
+                  data = parse_vless_link(line)
                   if data:
                       tag = f"proxy-{count + 1}"
                       outbounds.append(create_outbound(tag, data))
-                      proxy_tags.append(tag)
                       count += 1
 
-              print(f"Parsed {count} servers.")
+              print(f"Successfully parsed {count} servers.")
 
               final_config = {
                   "log": {"access": "", "error": "", "loglevel": "warning"},
@@ -178,14 +245,14 @@ jobs:
               with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
                   json.dump(final_config, f, indent=2, ensure_ascii=False)
               
-              print("config.json generated successfully.")
+              print("config.json saved.")
 
           asyncio.run(main())
           EOF
 
       - name: Commit and Push changes
         run: |
-          git config --global user.name "PulseStackBot"
-          git config --global user.email "pulsestack@vpn.local"
+          git config --global user.name "Dwen-Bot"
+          git config --global user.email "dwen@vpn.local"
           git add config.json
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: 5k servers pool 🇪🇺 [$(date)]" && git push)
